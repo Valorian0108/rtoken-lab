@@ -57,6 +57,7 @@ function pathFor(values: number[], width: number, height: number, min: number, m
 
 export function MechanicsCanvas({ symbol, timeRange, view, livePremium }: MechanicsCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const viewLayerRef = useRef<SVGGElement>(null);
   const demo = useMemo(
     () => (symbol && timeRange ? createDemoData(symbol, timeRange) : { points: [], scenario: "WAITING" }),
     [symbol, timeRange],
@@ -84,6 +85,19 @@ export function MechanicsCanvas({ symbol, timeRange, view, livePremium }: Mechan
     }, svg);
     return () => context.revert();
   }, [data, view, symbol]);
+
+  useEffect(() => {
+    const layer = viewLayerRef.current;
+    if (!layer) return;
+    const context = gsap.context(() => {
+      gsap.fromTo(
+        layer,
+        { opacity: 0, y: 14 },
+        { opacity: 1, y: 0, duration: 0.55, ease: "power3.out", overwrite: true },
+      );
+    }, layer);
+    return () => context.revert();
+  }, [view]);
 
   if (!symbol || !timeRange || data.length < 2) {
     return (
@@ -125,6 +139,7 @@ export function MechanicsCanvas({ symbol, timeRange, view, livePremium }: Mechan
             <path d="M 100 0 L 0 0 0 76" fill="none" stroke="var(--color-chart-grid)" strokeWidth="1" />
           </pattern>
         </defs>
+        <g ref={viewLayerRef}>
         <rect width={width} height={height} fill="transparent" />
         <rect width={width} height={height} fill="url(#instrument-grid)" />
 
@@ -154,6 +169,7 @@ export function MechanicsCanvas({ symbol, timeRange, view, livePremium }: Mechan
         <text x="18" y="24" fill="var(--color-fg-muted)" fontSize="12" fontFamily="var(--font-mono)">
           {view.toUpperCase()} · {new Date(timeRange.start * 1000).toLocaleDateString()} — {new Date(timeRange.end * 1000).toLocaleDateString()}
         </text>
+        </g>
       </svg>
     </Box>
   );

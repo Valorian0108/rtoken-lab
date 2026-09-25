@@ -102,6 +102,10 @@ function AppInner() {
     }
   }, [addNotification]);
 
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("rtoken-view-change", { detail: activeView }));
+  }, [activeView]);
+
   // Listen for canvas events from Research Panel
   useEffect(() => {
     const unsub = canvasEventBus.on("set-comparison", (event: CanvasEvent) => {

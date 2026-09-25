@@ -1,5 +1,5 @@
-import { useMemo, useRef, type ElementType } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, type ElementType } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 const R3FPoints = "points" as unknown as ElementType;
@@ -13,6 +13,8 @@ const GRID_ROWS = 34;
 function LiquidityField() {
   const pointsRef = useRef<THREE.Points>(null);
   const cameraDrift = useRef({ x: 0, y: 0 });
+  const cameraTarget = useRef({ x: 0, y: 0, z: 7, tilt: 0 });
+  const { camera } = useThree();
 
   const { positions, colors } = useMemo(() => {
     const pointPositions = new Float32Array(GRID_COLUMNS * GRID_ROWS * 3);
@@ -45,9 +47,33 @@ function LiquidityField() {
     return { positions: pointPositions, colors: pointColors };
   }, []);
 
+  useEffect(() => {
+    const onViewChange = (event: Event) => {
+      const view = (event as CustomEvent<string>).detail;
+      const targets: Record<string, { x: number; y: number; z: number; tilt: number }> = {
+        price: { x: 0, y: 0, z: 7, tilt: 0 },
+        premium: { x: 0.45, y: 0.12, z: 6.15, tilt: 0.04 },
+        heatmap: { x: -0.35, y: 0.28, z: 5.35, tilt: 0.1 },
+        flow: { x: 0.75, y: -0.05, z: 6.4, tilt: -0.07 },
+        funding: { x: -0.2, y: 0.22, z: 5.8, tilt: 0.06 },
+      };
+      cameraTarget.current = targets[view] ?? targets.price!;
+    };
+
+    window.addEventListener("rtoken-view-change", onViewChange);
+    return () => window.removeEventListener("rtoken-view-change", onViewChange);
+  }, []);
+
   useFrame((state, delta) => {
     const points = pointsRef.current;
     if (!points) return;
+    const target = cameraTarget.current;
+    const cameraEase = Math.min(delta * 2.4, 1);
+    camera.position.x += (target.x + state.pointer.x * 0.18 - camera.position.x) * cameraEase;
+    camera.position.y += (target.y + state.pointer.y * 0.12 - camera.position.y) * cameraEase;
+    camera.position.z += (target.z - camera.position.z) * cameraEase;
+    camera.rotation.x += (target.tilt - camera.rotation.x) * cameraEase;
+    camera.lookAt(0, 0, 0);
     const targetX = state.pointer.x * 0.18;
     const targetY = state.pointer.y * 0.12;
     cameraDrift.current.x += (targetX - cameraDrift.current.x) * Math.min(delta * 2.2, 1);
