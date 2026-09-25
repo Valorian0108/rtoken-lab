@@ -239,8 +239,13 @@ Select a symbol from the header to begin.`,
                   {msg.type === "question" ? "You" : msg.type === "answer" ? "Lab" : "Error"}
                 </Text>
               </Box>
-              <Text variant="body-sm" color="primary" style={{ whiteSpace: "pre-wrap", lineHeight: "var(--leading-relaxed)" }}>
-                {msg.type === "error" ? msg.message : msg.text}
+              <Text
+                variant="body-sm"
+                color="primary"
+                className="telemetry-log"
+                style={{ whiteSpace: "pre-wrap", lineHeight: "var(--leading-relaxed)" }}
+              >
+                {formatTelemetryText(msg.type === "error" ? msg.message : msg.text)}
               </Text>
 
               {msg.type === "answer" && msg.sources && msg.sources.length > 0 && (
@@ -383,6 +388,13 @@ Select a symbol from the header to begin.`,
   );
 }
 
+
+function formatTelemetryText(text: string): string {
+  return text
+    .replace(/^•\s*/gm, "> ")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/^[-*]\s+/gm, "> ");
+}
 
 function generateMockResponse(
   question: string,

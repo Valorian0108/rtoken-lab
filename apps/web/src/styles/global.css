@@ -28,6 +28,10 @@
   grid-column: 1 / -1;
   grid-row: 1;
   min-width: 0;
+  background: rgba(10, 15, 25, 0.32);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .app-left-panel {
@@ -96,9 +100,19 @@
  * PANEL STYLES
  * ======================================================================== */
 
+.app-left-panel,
+.app-right-panel {
+  margin: 10px;
+  height: calc(100% - 20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(10, 15, 25, 0.4);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
 .panel {
-  background: transparent;
-  border-right: 1px solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -370,7 +384,36 @@
   height: 100% !important;
 }
 
+.telemetry-log {
+  font-family: var(--font-mono) !important;
+  font-size: var(--text-sm) !important;
+  line-height: 1.65 !important;
+  letter-spacing: var(--tracking-mono);
+  color: var(--color-fg-secondary) !important;
+}
+.telemetry-log p, .telemetry-log ul, .telemetry-log ol { margin: 0; }
+.telemetry-log li { list-style: none; }
+.telemetry-log strong { color: var(--color-fg-primary); font-weight: 500; }
+.telemetry-log code { color: var(--color-accent-positive); }
+
 /* Bespoke control system: no default browser controls in the workbench. */
+.ui-button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ui-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: translateX(-110%);
+  background: linear-gradient(105deg, transparent, rgba(143, 207, 118, 0.18), transparent);
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+.ui-button:hover::after { transform: translateX(110%); }
+.ui-button:hover { box-shadow: 0 0 20px rgba(143, 207, 118, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+
 .ui-input, .ui-select, .ui-textarea {
   width: 100%;
   border: 1px solid var(--color-border-default);
@@ -383,7 +426,7 @@
   transition: border-color var(--duration-fast), box-shadow var(--duration-fast), background var(--duration-fast);
 }
 .ui-input::placeholder, .ui-textarea::placeholder { color: var(--color-fg-muted); }
-.ui-input:hover, .ui-select:hover, .ui-textarea:hover { border-color: var(--color-border-strong); }
+.ui-input:hover, .ui-select:hover, .ui-textarea:hover { border-color: rgba(143, 207, 118, 0.48); box-shadow: 0 0 18px rgba(143, 207, 118, 0.08); }
 .ui-input:focus, .ui-select:focus, .ui-textarea:focus { border-color: var(--color-accent-positive); box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent-positive) 22%, transparent); }
 .ui-select { appearance: none; padding-right: 2rem; background-image: linear-gradient(45deg, transparent 50%, var(--color-fg-muted) 50%), linear-gradient(135deg, var(--color-fg-muted) 50%, transparent 50%); background-position: calc(100% - 14px) 50%, calc(100% - 10px) 50%; background-size: 4px 4px, 4px 4px; background-repeat: no-repeat; }
 .ui-textarea { resize: vertical; min-height: 76px; }
