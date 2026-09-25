@@ -125,7 +125,7 @@ export function MechanicsCanvas({ symbol, timeRange, view, livePremium }: Mechan
             <path d="M 100 0 L 0 0 0 76" fill="none" stroke="var(--color-chart-grid)" strokeWidth="1" />
           </pattern>
         </defs>
-        <rect width={width} height={height} fill="var(--color-bg-base)" />
+        <rect width={width} height={height} fill="transparent" />
         <rect width={width} height={height} fill="url(#instrument-grid)" />
 
         {view === "price" && (

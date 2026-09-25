@@ -150,7 +150,7 @@ Select a symbol from the header to begin.`,
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        background: "var(--color-bg-elevated)",
+        background: "transparent",
       }}
     >
       <Box

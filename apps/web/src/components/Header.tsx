@@ -52,7 +52,7 @@ export function Header({
 
   return (
     <header className="app-header" style={{
-      background: "var(--color-bg-elevated)",
+      background: "transparent",
       borderBottom: "1px solid var(--color-border-subtle)",
       padding: "var(--space-3) var(--space-4)",
       display: "flex",
@@ -103,7 +103,7 @@ export function Header({
               top: "calc(100% + var(--space-2))",
               left: 0,
               right: 0,
-              background: "var(--color-bg-elevated)",
+              background: "transparent",
               border: "1px solid var(--color-border-default)",
               borderRadius: "var(--radius-md)",
               boxShadow: "var(--shadow-md)",

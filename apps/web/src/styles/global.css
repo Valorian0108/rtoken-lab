@@ -14,7 +14,14 @@
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: var(--color-bg-base);
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+.app-layout > *:not(.liquidity-background) {
+  position: relative;
+  z-index: 1;
 }
 
 .app-header {
@@ -90,7 +97,7 @@
  * ======================================================================== */
 
 .panel {
-  background: var(--color-bg-elevated);
+  background: transparent;
   border-right: 1px solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
@@ -338,18 +345,29 @@
 }
 
 .panel {
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--color-bg-elevated) 96%, white), var(--color-bg-elevated));
+  background: transparent;
 }
 
 .panel-header {
-  background: color-mix(in oklch, var(--color-bg-elevated) 88%, black);
+  background: transparent;
 }
 
 .canvas-container {
-  background:
-    radial-gradient(circle at 50% 20%, color-mix(in oklch, var(--color-accent-info) 8%, transparent), transparent 45%),
-    var(--color-bg-base);
+  background: transparent;
+}
+
+.liquidity-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--color-bg-base);
+}
+
+.liquidity-background canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* Bespoke control system: no default browser controls in the workbench. */
@@ -401,7 +419,7 @@
   filter: drop-shadow(0 8px 24px color-mix(in oklch, black 22%, transparent));
 }
 
-.mechanics-surface { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--color-bg-base); }
+.mechanics-surface { width: 100%; height: 100%; display: flex; flex-direction: column; background: transparent; }
 .mechanics-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border-subtle); }
 .mechanics-svg { display: block; width: 100%; height: 100%; min-height: 0; }
 .canvas-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); }

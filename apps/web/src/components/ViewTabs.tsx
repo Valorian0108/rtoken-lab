@@ -84,7 +84,7 @@ export function ViewTabs({ activeView, onChange, className }: ViewTabsProps) {
         gap: "var(--space-1)",
         padding: "var(--space-2) var(--space-4)",
         borderBottom: "1px solid var(--color-border-subtle)",
-        background: "var(--color-bg-elevated)",
+        background: "transparent",
         overflowX: "auto",
         scrollbarWidth: "thin",
       }}

@@ -6,6 +6,7 @@ import { ResearchPanel } from "./features/research-panel/ResearchPanel";
 import { MechanicsCanvas } from "./features/mechanics-canvas/MechanicsCanvas";
 import { ThesisSandbox } from "./features/thesis-sandbox/ThesisSandbox";
 import { TimelineBar } from "./components/TimelineBar";
+import { LiquidityBackground } from "./components/LiquidityBackground";
 import { ViewTabs } from "./components/ViewTabs";
 import { useStore } from "./state/store";
 import { canvasEventBus, createSymbol } from "@rtoken-lab/core";
@@ -146,6 +147,7 @@ function AppInner() {
 
   return (
     <div className="app-layout">
+      <LiquidityBackground />
       <Header
         selectedSymbol={selectedSymbol}
         onSymbolChange={setSelectedSymbol}

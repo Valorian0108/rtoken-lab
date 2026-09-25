@@ -153,7 +153,7 @@ export function ThesisSandbox({ selectedSymbol, timeRange }: ThesisSandboxProps)
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        background: "var(--color-bg-elevated)",
+        background: "transparent",
       }}
     >
       <Box

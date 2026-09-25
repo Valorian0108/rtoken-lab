@@ -205,7 +205,7 @@ export function TimelineBar({ className }: TimelineBarProps) {
       className={className}
       style={{
         height: 120,
-        background: "var(--color-bg-elevated)",
+        background: "transparent",
         borderTop: "1px solid var(--color-border-subtle)",
         display: "flex",
         flexDirection: "column",
