@@ -33,7 +33,9 @@ export function Header({ dataStatus, selectedMarket, markets, marketsStatus, onM
       <div className="app-header__brand">
         <div className="app-header__identity">
           <div className="brand-wordmark" aria-label="rToken Lab">
-            <span className="brand-wordmark__r">r</span><span>Token</span><span className="brand-wordmark__lab">Lab</span>
+            <img className="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
+            <span><span className="brand-wordmark__r">r</span><span>Token</span></span>
+            <span className="brand-wordmark__lab">Lab</span>
           </div>
           <span className="brand-descriptor">MARKET STRUCTURE / RESEARCH DESK</span>
         </div>
