@@ -5,6 +5,33 @@
 **Auth**: None required
 **Session**: Requires `initialize` handshake, returns `mcp-session-id` header
 
+### S2 scope alignment (2026-09-26)
+
+The S2 handbook supplied for this project documents the Bitget MCP Server as read-only US-stock/ETF data (quotes, historical K-lines, fundamentals, corporate actions, analyst/institutional, ETF, news, and sentiment categories). It does not document the crypto/RWA tools listed below. The current environment could not retrieve a live MCP handshake/catalog, so the legacy crypto/RWA tool availability and the exact current S2 tool schemas are unverified. The web app's quote-pair and historical-series requests are therefore disabled until catalog discovery confirms the supported calls; generated charts remain explicitly illustrative. Do not interpret the legacy catalog table below as a verified S2 API contract.
+
+### Bitget public REST and MCP verification (2026-09-28)
+
+The following Bitget public REST paths were fetched successfully from the local Windows workspace on 2026-09-28 (these are point-in-time probes; deploy connectivity and continued service are not implied):
+
+- `GET /api/v3/market/instruments?category=SPOT`, filtered to online USDT Reality stock instruments; RAAPL remained available.
+- `GET /api/v3/market/tickers?category=SPOT&symbol=RAAPLUSDT` and `RNKEUSDT` for selected spot ticker snapshots.
+- `GET /api/v3/market/candles?category=SPOT&symbol=RAAPLUSDT&interval=1H&limit=3` and `GET /api/v3/market/history-candles?...&interval=1D&limit=5`, plus corresponding RNKE calls. Both returned OHLCV arrays with candle timestamps. Bitget's [Reality Trading guide](https://www.bitget.com/api-doc/uta/reality/reality-trading-guide) describes Reality tickers/candles as using the public market-data families; Reality candles support a documented subset of intervals. Public hourly/daily history can replace synthetic chart content only after the app integrates it and labels source, timestamp, completeness, and any gaps; it is not a native-stock comparison or historical premium series.
+- `GET /api/v3/market/orderbook?category=SPOT&symbol=RAAPLUSDT&limit=5` returned a standard spot depth snapshot with bids, asks, and a timestamp. This verifies the generic SPOT endpoint response, not complete/executable market liquidity. The separate Reality-specific `GET /api/v3/account/reality-orderbook` is API-key and whitelist gated per Bitget's [Reality OrderBook docs](https://www.bitget.com/api-doc/uta/reality/market/Reality-OrderBook).
+- `GET /api/v3/reality/market/stock-info?symbol=RAAPLUSDT` returned a mapping to underlying code `AAPL` and trading-period metadata.
+
+The native-stock side has two Bitget routes with different evidence limits:
+
+- The existing read-only Bitget MCP `equity_price_quote` call for `AAPL` returned `success: true` and HTTP 200 twice, with `provider: bitget_data`, prices around USD 340.52, and response metadata `extra_params.source: iex`. However the result has no market-observation timestamp, bid/ask, quote condition, or session. The metadata timestamp is the service request time, not proof of observation time; the meaning/coverage of the `iex` source metadata has not been independently verified. The MCP `equity_price_historical` query returned HTTP 204 with empty data in the tested recent range.
+- The official [Stock+ quote endpoint](https://www.bitget.com/api-doc/uta/stockplus/market/equity-etf/Get-Quote), `GET /api/v3/stockplus/market/quote?symbol=AAPL.US`, requires signed API-key headers in its request example; Bitget says Stock Level 1 data is whitelist-only. An unauthenticated request returned HTTP 400. No credentials were used.
+
+Therefore the present setup does **not** justify calculating a synchronized rToken/native-stock premium: the MCP quote lacks an observation timestamp and two-sided quote, and Stock+ is gated. A separate provider is not mandatory just to fetch a reference (MCP succeeded), but may be needed if Bitget cannot provide an authorized, timestamped, adequate native quote. Keep the current app on its one-sided rToken snapshot task until then. The app does not yet consume the probed public candle/order-book/stock-info endpoints or the MCP native quote, and deployment is unverified. See `docs/research-log.md` for probe details.
+
+### Third-party public-display screening (2026-09-28)
+
+- Alpaca's [support FAQ on redistribution](https://alpaca.markets/support/redistribute-alpaca-api) explicitly says Alpaca API data cannot be redistributed. Treat displaying Alpaca-sourced AAPL prices in this public demo as unauthorized unless Alpaca separately grants permission; do not integrate data from an ordinary API subscription for this use. Alpaca remains screened out despite its accessible API and timestamped market-data features.
+- The free/basic feed's IEX coverage is also not full-market coverage. This is a separate data-quality limitation and does not change the redistribution decision.
+- No public-display permission or exception has been established. This is a screening conclusion based on Alpaca's published support guidance, not legal advice.
+
 ### Tools Exposed
 | Tool | Purpose |
 |------|---------|
@@ -44,6 +71,8 @@
 **Tested**: `equity_price_quote` works ✅ — returns last_price, open, high, low, close, volume, change, change_percent, market_cap, etc.
 **Tested**: `equity_price_historical` returned 204 (no content) for 30-day range — may need different params
 
+**Runtime recheck (2026-09-25)**: MCP `initialize`, the initialized notification, and `tools/call` are reachable through both the Vite same-origin proxy and direct HTTPS from this development environment. The current follow-up calls for `equity_price_quote`, `equity_price_historical`, `crypto_spot_ticker`, `crypto_spot_kline`, and `crypto_futures_ticker` returned Bitget MCP tool envelopes with `success: false`, `status_code: 503`, and an upstream “503 Service Temporarily Unavailable” HTML body. Therefore the MCP transport is reachable, but current market data and historical observations are unavailable; prior “works” results are not evidence of current availability.
+
 ---
 
 ### 2. Crypto — 39 entries — **rToken & Crypto Data**
@@ -72,6 +101,8 @@
 - `crypto_spot_ticker` with `exchange: "bitget"` ✅ — returns last, bid, ask, volume, change_percent
 - `crypto_spot_kline` returned 204 (no content) — spot markets may be too new
 - **Perpetual klines likely have more history** — should test `crypto_futures_kline`
+
+See the 2026-09-25 runtime recheck above: the tool catalog handshake succeeds, while current quote/history tool calls reported upstream 503 responses.
 
 #### Other Crypto Data (for context)
 - On-chain: fund_flow, trading_signal, exchange_flows, stablecoin_flow, token_unlock_event

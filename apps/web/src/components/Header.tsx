@@ -1,201 +1,146 @@
-import { useState, useRef, useEffect } from "react";
-import type { NormalizedPremium } from "@rtoken-lab/core";
-import { Box, Text, Button, Input, Select, Tooltip } from "@rtoken-lab/ui";
-import type { SelectOption } from "@rtoken-lab/ui";
+import { useMemo, useState } from "react";
+import type { RTokenMarket } from "../features/rtoken-markets";
+import { searchRTokenMarkets } from "../features/rtoken-markets";
 
 interface HeaderProps {
-  selectedSymbol: string | null;
-  onSymbolChange: (symbol: string | null) => void;
-  activeView: string;
-  onViewChange: (view: "price" | "premium" | "heatmap" | "flow" | "funding") => void;
-  livePremium?: NormalizedPremium | null;
+  dataStatus: "loading" | "live" | "unavailable";
+  selectedMarket: RTokenMarket;
+  markets: RTokenMarket[];
+  marketsStatus: "loading" | "ready" | "unavailable";
+  onMarketChange: (market: RTokenMarket) => void;
 }
 
-const COMMON_SYMBOLS: SelectOption[] = [
-  { value: "AAPL", label: "AAPL — Apple" },
-  { value: "NVDA", label: "NVDA — NVIDIA" },
-  { value: "TSLA", label: "TSLA — Tesla" },
-  { value: "MSFT", label: "MSFT — Microsoft" },
-  { value: "GOOGL", label: "GOOGL — Alphabet" },
-  { value: "AMZN", label: "AMZN — Amazon" },
-  { value: "META", label: "META — Meta" },
-  { value: "AMD", label: "AMD — AMD" },
-  { value: "INTC", label: "INTC — Intel" },
-  { value: "AVGO", label: "AVGO — Broadcom" },
-];
+export function Header({ dataStatus, selectedMarket, markets, marketsStatus, onMarketChange }: HeaderProps) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const filteredMarkets = useMemo(() => {
+    return searchRTokenMarkets(markets, query);
+  }, [markets, query]);
+  const options = marketsStatus === "unavailable"
+    ? [{ symbol: "RAAPLUSDT", baseCoin: "rAAPL" }]
+    : filteredMarkets;
 
-export function Header({
-  selectedSymbol,
-  onSymbolChange,
-  activeView,
-  onViewChange,
-  livePremium,
-}: HeaderProps) {
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const searchRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsSearchOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const filteredSymbols = COMMON_SYMBOLS.filter((s) =>
-    s.value.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const selectMarket = (market: RTokenMarket) => {
+    onMarketChange(market);
+    setQuery("");
+    setIsOpen(false);
+    setActiveIndex(-1);
+  };
 
   return (
-    <header className="app-header" style={{
-      background: "transparent",
-      borderBottom: "1px solid var(--color-border-subtle)",
-      padding: "var(--space-3) var(--space-4)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: "var(--space-4)",
-      flexWrap: "wrap",
-      position: "relative",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-        <div style={{
-          width: 32,
-          height: 32,
-          borderRadius: "var(--radius-md)",
-          background: "linear-gradient(135deg, var(--color-accent-positive), var(--color-accent-warning))",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" aria-hidden="true">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
-        </div>
-        <div>
-          <Text variant="heading-md" weight="bold" color="primary">rToken Lab</Text>
-          <Text variant="caption" color="muted">Research Instrument for Tokenized Stock Mechanics</Text>
+    <header className="app-header">
+      <div className="app-header__brand">
+        <div className="app-header__identity">
+          <div className="brand-wordmark" aria-label="rToken Lab">
+            <span className="brand-wordmark__r">r</span><span>Token</span><span className="brand-wordmark__lab">Lab</span>
+          </div>
+          <span className="brand-descriptor">MARKET STRUCTURE / RESEARCH DESK</span>
         </div>
       </div>
 
-      <div ref={searchRef} style={{ position: "relative", flex: 1, maxWidth: 400 }}>
-        <Box flex alignItems="center" gap={2}>
-          <Input
-            placeholder="Search symbol (AAPL, NVDA, TSLA...)"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setIsSearchOpen(true);
+      <div className="header-market-label">
+        <span>BITGET SPOT</span>
+        <div className="market-picker">
+          <span className="visually-hidden">Search Bitget Reality spot markets</span>
+          <input
+            type="search"
+            onClick={() => {
+              if (!isOpen) {
+                setQuery("");
+                setIsOpen(true);
+              }
             }}
-            onFocus={() => setIsSearchOpen(true)}
-            size="sm"
-            style={{ width: isSearchOpen ? "100%" : 200, transition: "width var(--duration-fast)" }}
+            value={isOpen ? query : `${selectedMarket.baseCoin} / USDT`}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setActiveIndex(-1);
+              setIsOpen(true);
+            }}
+            onFocus={() => {
+              setQuery("");
+              setActiveIndex(-1);
+              setIsOpen(true);
+            }}
+            onBlur={() => window.setTimeout(() => {
+              if (document.activeElement?.closest(".market-picker")) return;
+              setIsOpen(false);
+              setQuery("");
+            }, 0)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                if (!isOpen) setIsOpen(true);
+                if (options.length > 0) {
+                  setActiveIndex((current) => event.key === "ArrowDown"
+                    ? (current + 1 + options.length) % options.length
+                    : (current < 0 ? options.length - 1 : (current - 1 + options.length) % options.length));
+                }
+              }
+              if (event.key === "Home" && isOpen && options.length > 0) {
+                event.preventDefault();
+                setActiveIndex(0);
+              }
+              if (event.key === "End" && isOpen && options.length > 0) {
+                event.preventDefault();
+                setActiveIndex(options.length - 1);
+              }
+              if (event.key === "Escape") {
+                setIsOpen(false);
+                setQuery("");
+                setActiveIndex(0);
+              }
+              if (event.key === "Enter" && isOpen && options[activeIndex < 0 ? 0 : activeIndex]) {
+                event.preventDefault();
+                selectMarket(options[activeIndex < 0 ? 0 : activeIndex]!);
+              }
+            }}
+            aria-label="Search verified Bitget Reality spot markets"
+            role="combobox"
+            aria-haspopup="listbox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+            aria-controls={isOpen ? "rtoken-market-options" : undefined}
+            aria-activedescendant={isOpen && activeIndex >= 0 && options.length > activeIndex ? `rtoken-market-option-${activeIndex}` : undefined}
+            placeholder="Search symbol…"
+            autoComplete="off"
           />
-          {isSearchOpen && searchQuery && (
-            <div style={{
-              position: "absolute",
-              top: "calc(100% + var(--space-2))",
-              left: 0,
-              right: 0,
-              background: "transparent",
-              border: "1px solid var(--color-border-default)",
-              borderRadius: "var(--radius-md)",
-              boxShadow: "var(--shadow-md)",
-              zIndex: "var(--z-dropdown)",
-              maxHeight: 280,
-              overflow: "auto",
-            }}>
-              {filteredSymbols.length === 0 ? (
-                <div style={{ padding: "var(--space-3)", color: "var(--color-fg-muted)", fontSize: "var(--text-sm)" }}>
-                  No matches found
-                </div>
-              ) : (
-                filteredSymbols.map((sym) => (
-                  <button
-                    key={sym.value}
-                    onClick={() => {
-                      onSymbolChange(sym.value);
-                      setIsSearchOpen(false);
-                      setSearchQuery("");
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "var(--space-2) var(--space-3)",
-                      textAlign: "left",
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--color-fg-primary)",
-                      fontSize: "var(--text-sm)",
-                      cursor: "pointer",
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.background = "var(--color-bg-hover)"}
-                    onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+          <span className="market-picker__chevron" aria-hidden="true">⌄</span>
+          {isOpen && (
+            <div className="market-picker__menu" aria-busy={marketsStatus === "loading"}>
+              {marketsStatus === "loading" && <span className="market-picker__message" role="status">Loading Bitget markets…</span>}
+              {marketsStatus === "unavailable" && <span className="market-picker__message" role="status">Market list unavailable. Only the default market can be selected.</span>}
+              {marketsStatus === "ready" && filteredMarkets.length === 0 && <span className="market-picker__message" role="status">No verified market matches.</span>}
+              <div id="rtoken-market-options" role="listbox" aria-label="Verified Bitget Reality spot markets">
+                {options.map((market, index) => (
+                  <div
+                    key={market.symbol}
+                    id={`rtoken-market-option-${index}`}
+                    role="option"
+                    aria-selected={market.symbol === selectedMarket.symbol}
+                    className={index === activeIndex ? "is-active" : undefined}
+                    onMouseMove={() => setActiveIndex(index)}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectMarket(market)}
                   >
-                    <Text variant="body-sm" weight="medium" mono>{sym.value}</Text>
-                    <Text variant="caption" color="muted" className="block">{sym.label.split("—")[1]?.trim()}</Text>
-                  </button>
-                ))
+                    <strong>{market.baseCoin} / USDT</strong>
+                    <span>{market.symbol}</span>
+                  </div>
+                ))}
+              </div>
+              {marketsStatus === "ready" && filteredMarkets.length > 0 && (
+                <span className="market-picker__footnote">Showing up to 12 · online Bitget Reality spot instruments</span>
               )}
             </div>
           )}
-        </Box>
+        </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-        {livePremium && (
-          <Tooltip
-            content={`Native ${livePremium.nativePrice} · rToken ${livePremium.rTokenPrice} · ${livePremium.nativeSource.endpoint} + ${livePremium.rTokenSource.endpoint}`}
-            position="bottom"
-          >
-            <span className="premium-indicator" data-testid="header-premium">
-              <span className="premium-indicator__value" style={{ color: livePremium.premiumBps >= 0 ? "var(--color-accent-positive)" : "var(--color-accent-negative)" }}>
-                {livePremium.premiumBps >= 0 ? "+" : ""}{livePremium.premiumBps.toFixed(0)} bps
-              </span>
-              <span className="premium-indicator__label">premium</span>
-            </span>
-          </Tooltip>
-        )}
-        <Tooltip content="Live data from Bitget MCP" position="top">
-          <span style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "var(--space-1)",
-            padding: "var(--space-1) var(--space-2)",
-            borderRadius: "var(--radius-full)",
-            fontSize: "var(--text-xs)",
-            fontWeight: "var(--font-medium)",
-            fontFamily: "var(--font-mono)",
-            background: "var(--color-accent-positive-bg)",
-            color: "var(--color-accent-positive-fg)",
-          }}>
-            <span style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--color-accent-positive)",
-              animation: "pulse 2s infinite",
-            }} />
-            LIVE
-          </span>
-        </Tooltip>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onSymbolChange(null)}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 6v6l4 2" />
-          </svg>
-          <span style={{ display: "none" }}>Reset</span>
-        </Button>
+      <div className="app-header__status">
+        <span className={`data-state data-state--${dataStatus}`} role="status">
+          <span className="data-state__mark" aria-hidden="true" />
+          {dataStatus === "live" ? `BITGET ${selectedMarket.baseCoin.toUpperCase()} SNAPSHOT` : dataStatus === "loading" ? "CHECKING BITGET SPOT" : `${selectedMarket.baseCoin.toUpperCase()} SNAPSHOT UNAVAILABLE`}
+        </span>
       </div>
     </header>
   );

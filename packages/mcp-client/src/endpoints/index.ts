@@ -1,4 +1,4 @@
-import { HttpMcpTransport, GuideParams, DoQueryParams } from "../transport";
+import { HttpMcpTransport } from "../transport";
 import type {
   EquityQuoteData,
   EquityHistoricalData,
@@ -29,9 +29,6 @@ import {
   CryptoFuturesKlineParamsSchema,
   CryptoFuturesFundingParamsSchema,
   NormalizedQuoteSchema,
-  NormalizedKlineSchema,
-  NormalizedPremiumSchema,
-  calculatePremium,
   buildPremiumData,
   toPerpetualSymbol,
   toSpotSymbol,
@@ -234,6 +231,7 @@ export class BitgetMcpClient {
       receivedAt: new Date().toISOString(),
       symbol,
       isLive: true,
+      limitations: ["The equity response has no quote-level timestamp; receivedAt is retrieval time."],
     };
 
     return NormalizedQuoteSchema.parse({
@@ -266,8 +264,10 @@ export class BitgetMcpClient {
       endpoint: "crypto_spot_ticker",
       requestedAt: new Date().toISOString(),
       receivedAt: new Date().toISOString(),
+      dataTimestamp: result.timestamp,
       symbol: rTokenSymbol,
       isLive: true,
+      limitations: ["Spot quote is denominated in USDT; this comparison does not convert USDT to USD."],
     };
 
     return NormalizedQuoteSchema.parse({
@@ -300,8 +300,10 @@ export class BitgetMcpClient {
       endpoint: "crypto_futures_ticker",
       requestedAt: new Date().toISOString(),
       receivedAt: new Date().toISOString(),
+      dataTimestamp: result.timestamp,
       symbol: rTokenSymbol,
       isLive: true,
+      limitations: ["This is a USDT-margined perpetual contract quote, not a native share or an rToken spot quote."],
     };
 
     return NormalizedQuoteSchema.parse({
@@ -322,11 +324,11 @@ export class BitgetMcpClient {
   }
 
   /**
-   * Get premium data (native vs rToken)
+   * Get a cross-instrument price gap (native equity vs rToken spot by default).
    */
   async getPremiumData(
     nativeSymbol: Symbol,
-    usePerpetual = true
+    usePerpetual = false
   ): Promise<NormalizedPremium> {
     const [nativeQuote, rTokenQuote] = await Promise.all([
       this.getNormalizedEquityQuote(nativeSymbol),
@@ -339,19 +341,22 @@ export class BitgetMcpClient {
   }
 
   /**
-   * Get premium time series from perpetual klines (best history)
+   * Get a timestamp-aligned price-gap series for the selected rToken market.
    */
   async getPremiumSeries(
     nativeSymbol: Symbol,
     startTime: Timestamp,
     endTime: Timestamp,
-    interval = "1h"
+    interval = "1h",
+    market: "spot" | "perpetual" = "spot"
   ): Promise<NormalizedPremium[]> {
-    const perpetualSymbol = toPerpetualSymbol(nativeSymbol);
+    const rTokenSymbol = (market === "perpetual" ? toPerpetualSymbol(nativeSymbol) : toSpotSymbol(nativeSymbol)) as Symbol;
 
     const [nativeKlinesRaw, rTokenKlinesRaw] = await Promise.all([
       this.getEquityHistorical(nativeSymbol, startTime, endTime),
-      this.getFuturesKlines(perpetualSymbol, startTime, endTime, EXCHANGES.BINANCE, interval),
+      market === "perpetual"
+        ? this.getFuturesKlines(rTokenSymbol, startTime, endTime, EXCHANGES.BINANCE, interval)
+        : this.getSpotKlines(rTokenSymbol, startTime, endTime, EXCHANGES.BITGET, interval),
     ]);
 
     // Normalize klines
@@ -377,21 +382,21 @@ export class BitgetMcpClient {
     }));
 
     const rTokenKlines: NormalizedKline[] = (rTokenKlinesRaw.results ?? []).map(k => ({
-      symbol: perpetualSymbol as Symbol,
+      symbol: rTokenSymbol,
       timestamp: k.timestamp,
       open: k.open,
       high: k.high,
       low: k.low,
       close: k.close,
       volume: k.volume,
-      source: "crypto-futures" as const,
+      source: (market === "perpetual" ? "crypto-futures" : "crypto-spot") as "crypto-futures" | "crypto-spot",
       sourceMetadata: {
         sourceId: rTokenKlinesRaw.id,
         provider: "bitget-mcp",
-        endpoint: "crypto_futures_kline",
+        endpoint: market === "perpetual" ? "crypto_futures_kline" : "crypto_spot_kline",
         requestedAt: new Date().toISOString(),
         receivedAt: new Date().toISOString(),
-        symbol: perpetualSymbol as Symbol,
+        symbol: rTokenSymbol,
         interval,
         isLive: false,
       },

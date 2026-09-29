@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { BitgetMcpClient, createClient } from "../endpoints";
+import { createClient } from "../endpoints";
+import type { BitgetMcpClient } from "../endpoints";
 import type {
   NormalizedQuote,
   NormalizedKline,
   NormalizedPremium,
   Symbol,
   Timestamp,
-  SourceMetadata,
 } from "@rtoken-lab/core";
 
 /**
@@ -144,7 +144,7 @@ export function usePremium(
   nativeSymbol: Symbol | null,
   options: { usePerpetual?: boolean; enabled?: boolean; refetchInterval?: number } = {}
 ) {
-  const { usePerpetual = true, enabled = true, refetchInterval } = options;
+  const { usePerpetual = false, enabled = true, refetchInterval } = options;
   const [data, setData] = useState<NormalizedPremium | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -183,9 +183,9 @@ export function usePremium(
 export function usePremiumSeries(
   nativeSymbol: Symbol | null,
   timeRange: { start: Timestamp; end: Timestamp } | null,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean; market?: "spot" | "perpetual" } = {}
 ) {
-  const { enabled = true } = options;
+  const { enabled = true, market = "spot" } = options;
   const [data, setData] = useState<NormalizedPremium[]>([]);
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -199,7 +199,9 @@ export function usePremiumSeries(
       const series = await clientRef.current.getPremiumSeries(
         nativeSymbol,
         timeRange.start,
-        timeRange.end
+        timeRange.end,
+        "1h",
+        market,
       );
       setData(series);
     } catch (e) {
@@ -207,11 +209,11 @@ export function usePremiumSeries(
     } finally {
       setIsLoading(false);
     }
-  }, [nativeSymbol, timeRange]);
+  }, [nativeSymbol, timeRange, market]);
 
   useEffect(() => {
     if (enabled && nativeSymbol && timeRange) fetch();
-  }, [enabled, nativeSymbol, timeRange, fetch]);
+  }, [enabled, nativeSymbol, timeRange, market, fetch]);
 
   return { data, error, isLoading, refetch: fetch };
 }
@@ -256,7 +258,10 @@ export function useRwaMarkets(options: { enabled?: boolean } = {}) {
  * Hook for finding rToken symbols for a native symbol
  */
 export function useRwaSymbol(nativeSymbol: Symbol | null) {
-  const [data, setData] = useState<{ perpetual?: string; spot?: string } | null>(null);
+  const [data, setData] = useState<{
+    perpetual?: { symbol: string; exchange: string };
+    spot?: { symbol: string; exchange: string };
+  } | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const clientRef = useRef(getMcpClient());

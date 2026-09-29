@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Symbol, Timestamp, TimeRange } from "../types";
+import type { Symbol, Timestamp } from "../types";
 
 /**
  * Event types for AI Research Panel → Mechanics Canvas communication
@@ -23,7 +23,7 @@ export const CanvasEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("set-view"),
-    view: z.enum(["price", "premium", "heatmap", "flow", "funding"]),
+    view: z.literal("price"),
   }),
   z.object({
     type: z.literal("clear-highlight"),
@@ -70,7 +70,7 @@ export function createSetComparison(symbol: Symbol, comparisonSymbol?: Symbol): 
 }
 
 export function createSetView(
-  view: "price" | "premium" | "heatmap" | "flow" | "funding"
+  view: "price"
 ): CanvasEvent {
   return { type: "set-view", view };
 }
@@ -107,100 +107,11 @@ export const CanvasInteractionSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("view-changed"),
-    view: z.enum(["price", "premium", "heatmap", "flow", "funding"]),
+    view: z.literal("price"),
   }),
 ]);
 
 export type CanvasInteraction = z.infer<typeof CanvasInteractionSchema>;
-
-/**
- * Thesis Sandbox events
- */
-export const ThesisEventSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("thesis-submitted"),
-    thesis: z.string(),
-    symbols: z.array(z.string()),
-    timeRange: z.object({
-      start: z.string().datetime(),
-      end: z.string().datetime(),
-    }),
-    rules: z.array(z.object({
-      condition: z.string(),
-      action: z.string(),
-      params: z.record(z.unknown()),
-    })),
-  }),
-  z.object({
-    type: z.literal("backtest-completed"),
-    thesisId: z.string(),
-    trades: z.array(z.object({
-      timestamp: z.string().datetime(),
-      symbol: z.string(),
-      side: z.enum(["long", "short"]),
-      size: z.number(),
-      price: z.number(),
-      pnl: z.number(),
-    })),
-    metrics: z.object({
-      totalReturn: z.number(),
-      sharpe: z.number(),
-      maxDrawdown: z.number(),
-      winRate: z.number(),
-      tradeCount: z.number(),
-    }),
-  }),
-  z.object({
-    type: z.literal("replay-frame"),
-    timestamp: z.string().datetime(),
-    portfolioValue: z.number(),
-    positions: z.record(z.number()),
-  }),
-]);
-
-export type ThesisEvent = z.infer<typeof ThesisEventSchema>;
-
-export interface ThesisRule {
-  id: string;
-  condition: string;
-  action: "long" | "short" | "hedge";
-  params: {
-    size?: number;
-    stopLoss?: number | undefined;
-    [key: string]: unknown;
-  };
-}
-
-export function createThesisSubmitted(
-  thesis: string,
-  symbols: string[],
-  timeRange: { start: string; end: string },
-  rules: ThesisRule[],
-): ThesisEvent {
-  return {
-    type: "thesis-submitted",
-    thesis,
-    symbols,
-    timeRange,
-    rules: rules.map((rule) => ({ condition: rule.condition, action: rule.action, params: rule.params })),
-  };
-}
-
-export function createBacktestCompleted(input: {
-  thesisId: string;
-  trades: Array<{ timestamp: string; symbol: string; side: "long" | "short"; size: number; price: number; pnl: number }>;
-  metrics: { totalReturn: number; sharpe: number; maxDrawdown: number; winRate: number; tradeCount: number };
-}): ThesisEvent {
-  return { type: "backtest-completed", ...input };
-}
-
-export function createReplayFrame(input: {
-  timestamp: string;
-  portfolioValue: number;
-  positions: Record<string, number>;
-}): ThesisEvent {
-  return { type: "replay-frame", ...input };
-}
 
 /**
  * AI Research Panel message types
@@ -239,7 +150,7 @@ export function createResearchQuestion(text: string): ResearchMessage {
   };
 }
 
-export type ResearchSource = {
+export interface ResearchSource {
   endpoint: string;
   timestamp: string;
   data?: unknown;
@@ -292,5 +203,4 @@ export class TypedEventBus<T extends { type: string }> {
  */
 export const canvasEventBus = new TypedEventBus<CanvasEvent>();
 export const canvasInteractionBus = new TypedEventBus<CanvasInteraction>();
-export const thesisEventBus = new TypedEventBus<ThesisEvent>();
 export const researchMessageBus = new TypedEventBus<ResearchMessage>();

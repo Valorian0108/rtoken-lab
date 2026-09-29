@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 /**
  * Branded types for type-safe domain primitives
  */
@@ -87,7 +85,7 @@ export interface NormalizedKline extends KlineData {
   sourceMetadata: SourceMetadata;
 }
 
-export interface NormalizedPremium extends PremiumData {}
+export type NormalizedPremium = PremiumData;
 
 /**
  * Data source metadata for traceability
@@ -100,6 +98,7 @@ export interface SourceMetadata {
   endpoint: string;
   requestedAt: string;
   receivedAt: string;
+  dataTimestamp?: string;
   symbol?: Symbol;
   interval?: string;
   isLive: boolean;

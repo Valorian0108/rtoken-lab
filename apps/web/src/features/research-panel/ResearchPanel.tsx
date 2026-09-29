@@ -1,41 +1,61 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { askQwenResearch } from "@rtoken-lab/mcp-client";
-import { getDemoScenario } from "../mechanics-canvas/demo-scenarios";
-import { Box, Text, Button, Input, LoadingState, EmptyState, Tooltip } from "@rtoken-lab/ui";
+import { Box, Text, Button, Tooltip } from "@rtoken-lab/ui";
 import { canvasEventBus, createResearchQuestion, createResearchAnswer } from "@rtoken-lab/core";
-import type { ResearchMessage, CanvasEvent, NormalizedPremium } from "@rtoken-lab/core";
-
-const MOCK_MODE = import.meta.env.DEV && !import.meta.env.VITE_USE_REAL_MCP;
+import type { ResearchMessage } from "@rtoken-lab/core";
+import type { RTokenSnapshot } from "../rtoken-snapshot";
+import type { RTokenCandle, RTokenCandleRange } from "../rtoken-candles";
+import { formatRTokenCandleEvidence } from "../rtoken-candle-analysis";
+import type { RTokenStockClose } from "../rtoken-stock-close";
 
 interface ResearchPanelProps {
-  selectedSymbol: string | null;
-  timeRange: { start: number; end: number } | null;
-  livePremium?: NormalizedPremium | null;
+  titleId: string;
+  rTokenSnapshot?: RTokenSnapshot | null;
+  snapshotStatus: "loading" | "live" | "unavailable";
+  candles: RTokenCandle[];
+  candleStatus: "loading" | "live" | "unavailable";
+  candleRetrievedAt: string | null;
+  symbol: string;
+  candleRange: RTokenCandleRange;
+  stockClose: RTokenStockClose | null;
+  stockCloseStatus: "loading" | "available" | "unavailable";
+  stockCloseError: string | null;
 }
 
 const SUGGESTED_QUESTIONS = [
-  "What is the current premium for this rToken?",
-  "Show me the largest premium event this week",
-  "Compare rToken and native price movement",
-  "What happened around this timestamp?",
-  "Explain the mint/redeem mechanism",
-  "What macro events could explain this premium?",
+  "What does this Bitget snapshot establish, and what can’t it establish?",
+  "What changed over the displayed hourly rToken history?",
+  "Are the bid, ask, and last price internally consistent?",
+  "What additional evidence would explain this rToken’s price formation?",
+  "How does the daily stock close differ in timing from the Bitget quote?",
 ];
 
-export function ResearchPanel({ selectedSymbol, timeRange, livePremium }: ResearchPanelProps) {
+export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles, candleStatus, candleRetrievedAt, symbol, candleRange, stockClose, stockCloseStatus, stockCloseError }: ResearchPanelProps) {
   const [messages, setMessages] = useState<ResearchMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const [requestCancelled, setRequestCancelled] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shouldFollowMessagesRef = useRef(true);
+
+  useEffect(() => () => requestControllerRef.current?.abort(), []);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+      shouldFollowMessagesRef.current = true;
+    }
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (shouldFollowMessagesRef.current) scrollToBottom();
   }, [messages, scrollToBottom]);
 
   const addMessage = useCallback((message: ResearchMessage) => {
@@ -49,66 +69,100 @@ export function ResearchPanel({ selectedSymbol, timeRange, livePremium }: Resear
     const question = inputValue.trim();
     setInputValue("");
     setSuggestionsOpen(false);
+    setRequestCancelled(false);
+    setStreamingText("");
 
     // Add user question
     addMessage(createResearchQuestion(question));
     setIsLoading(true);
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
 
+    const sources = [
+      ...(rTokenSnapshot ? [{
+          endpoint: `Bitget public Spot ticker · ${rTokenSnapshot.symbol}`,
+          timestamp: rTokenSnapshot.tickerTimestamp,
+          data: {
+            symbol: rTokenSnapshot.symbol,
+            lastPrice: rTokenSnapshot.lastPrice,
+            bidPrice: rTokenSnapshot.bidPrice,
+            askPrice: rTokenSnapshot.askPrice,
+            bidSize: rTokenSnapshot.bidSize,
+            askSize: rTokenSnapshot.askSize,
+            spreadPercent: rTokenSnapshot.spreadPercent,
+            retrievedAt: rTokenSnapshot.retrievedAt,
+            warnings: rTokenSnapshot.warnings,
+          },
+        }] : []),
+      ...(candleStatus === "live" && candles.length >= 2 && candleRetrievedAt
+        ? [{
+          endpoint: `Bitget public SPOT hourly candles · ${rTokenSnapshot?.symbol ?? `R${symbol}USDT`}`,
+          timestamp: candleRetrievedAt,
+          data: { candleCount: candles.length, firstTimestamp: candles[0]!.timestamp, lastTimestamp: candles.at(-1)!.timestamp },
+        }]
+        : []),
+      ...(stockClose ? [{
+        endpoint: `EODHD daily close · ${stockClose.symbol}`,
+        timestamp: stockClose.date,
+        data: { close: stockClose.close, date: stockClose.date, retrievedAt: stockClose.retrievedAt },
+      }] : []),
+    ];
+
+    const candleEvidence = candleStatus === "live" ? formatRTokenCandleEvidence(candles) : null;
     try {
-      const scenario = getDemoScenario(selectedSymbol ?? "DEFAULT");
       const context = [
-        `Demo scenario: ${scenario.label}`,
-        scenario.description,
-        livePremium
+        rTokenSnapshot
+            ? `DATA STATUS: A fresh, observed Bitget ${rTokenSnapshot.symbol} spot ticker is supplied below as an rToken market snapshot. Any stock close supplied separately is daily and not time-aligned.`
+            : `DATA STATUS: ${snapshotStatus === "loading" ? `The Bitget ${symbol} spot ticker is being checked.` : `No fresh ${symbol} ticker is available.`} Do not reuse stale values or invent prices.`,
+        candleEvidence
+          ? `The chart and this answer use the same validated Bitget rToken-only hourly close series for the selected ${candleRange} view, retrieved at ${candleRetrievedAt}. Do not infer market causes, fair value, premium/discount, or a trading signal. Cite specific measured changes and UTC times when relevant.\n${candleEvidence}`
+          : `Hourly chart evidence is ${candleStatus === "loading" ? "still loading" : "unavailable"}; no candle values are supplied. Do not infer anything from an unseen chart.`,
+        stockClose
+          ? `An independent EODHD daily ${stockClose.symbol} stock-ticker close is also supplied: ${stockClose.close} USD for trading date ${stockClose.date}, retrieved ${stockClose.retrievedAt}. It is only matched by the ticker name; this does not establish the rToken's underlying, backing, or redemption rights. It is not live, may be from the prior US trading session, is USD versus the Bitget USDT quote, and is not time-aligned. Do not calculate or describe a premium, discount, fair value, tracking, or synchronized comparison from it; no FX conversion is supplied.`
+          : `No independent stock close is supplied (${stockCloseStatus === "loading" ? "the daily close is still being checked" : stockCloseError ?? "the daily stock-close service is unavailable"}). Do not invent an underlying-stock value.`,
+        "Answer the user’s question as a concise research note. Clearly separate observed data from interpretation. State when a measured close-to-close change is descriptive only, not market direction or a trading signal. Identify missing evidence where relevant (for example, executable depth and timestamp alignment). Do not claim any missing source was checked.",
+        rTokenSnapshot
           ? [
-            `Native price: ${livePremium.nativePrice}`,
-            `rToken price: ${livePremium.rTokenPrice}`,
-            `Premium: ${livePremium.premiumBps} bps`,
-            `Observed at: ${new Date(livePremium.timestamp * 1000).toISOString()}`,
-            `Native source: ${livePremium.nativeSource.endpoint}`,
-            `rToken source: ${livePremium.rTokenSource.endpoint}`,
+            `Observed Bitget instrument: ${rTokenSnapshot.symbol}, Reality rToken spot market, quoted in USDT.`,
+            `Last: ${rTokenSnapshot.lastPrice} USDT; best bid: ${rTokenSnapshot.bidPrice} (${rTokenSnapshot.bidSize}); best ask: ${rTokenSnapshot.askPrice} (${rTokenSnapshot.askSize}).`,
+            `Bitget ticker timestamp: ${rTokenSnapshot.tickerTimestamp}; app retrieval time: ${rTokenSnapshot.retrievedAt}; bid/ask spread: ${rTokenSnapshot.spreadPercent.toFixed(4)}%.`,
+            `Quote-quality warnings: ${rTokenSnapshot.warnings.length ? rTokenSnapshot.warnings.join(" ") : "none detected by basic checks"}. These fields have not been independently audited for execution quality or units.`,
+            `Limits: this is the ${rTokenSnapshot.symbol} rToken market snapshot${stockClose ? ` plus a separate, ticker-name-matched ${stockClose.date} ${stockClose.symbol} daily stock close` : ""}. A name match does not establish underlying, backing, or redemption rights. The stock close is USD and not contemporaneous with the USDT quote; no FX conversion is supplied. No premium, NAV, valuation, recommendation, or trading signal can be inferred.`,
           ].join("\n")
-        : "No live premium snapshot is currently available. Do not invent current values.",
-      ].join("\n");
+          : `No fresh Bitget ${symbol} snapshot is supplied. Do not invent or reuse ticker prices.`,
+        ].filter(Boolean).join("\n");
 
-      const qwen = await askQwenResearch({ question, symbol: selectedSymbol ?? undefined, context });
-      const mockResponse = createResearchAnswer(
-        qwen.text,
-        [
-          ...(livePremium
-            ? [
-                {
-                  endpoint: livePremium.nativeSource.endpoint,
-                  timestamp: new Date().toISOString(),
-                  data: livePremium.nativePrice,
-                },
-                {
-                  endpoint: livePremium.rTokenSource.endpoint,
-                  timestamp: new Date().toISOString(),
-                  data: livePremium.rTokenPrice,
-                },
-              ]
-            : []),
-        ],
-      );
-      addMessage(mockResponse);
+      const qwen = await askQwenResearch({ question, symbol, context }, {
+        signal: controller.signal,
+        onDelta: (delta) => setStreamingText((current) => current + delta),
+        onReset: () => setStreamingText(""),
+      });
+      if (controller.signal.aborted) return;
+      setStreamingText("");
+      const answer = createResearchAnswer(qwen.text, sources);
+      addMessage(answer);
 
       // Emit canvas events if any
-      if (mockResponse.type === "answer" && mockResponse.canvasEvents) {
-        mockResponse.canvasEvents.forEach((event) => {
+      if (answer.type === "answer" && answer.canvasEvents) {
+        answer.canvasEvents.forEach((event) => {
           canvasEventBus.emit(event);
         });
       }
     } catch (error) {
-      addMessage({
-        type: "error",
-        message: "Failed to get response. Please try again.",
-        timestamp: new Date().toISOString(),
-      });
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+        setStreamingText("");
+        setRequestCancelled(true);
+        return;
+      }
+      console.warn("AI research explanation unavailable; returning an evidence-only summary.", error);
+      addMessage(createResearchAnswer(buildEvidenceFallback(rTokenSnapshot, snapshotStatus, symbol, candleEvidence), sources));
     } finally {
+      if (requestControllerRef.current === controller) requestControllerRef.current = null;
       setIsLoading(false);
     }
   };
+
+  const cancelRequest = () => requestControllerRef.current?.abort();
 
   const handleSuggestionClick = (question: string) => {
     setInputValue(question);
@@ -123,29 +177,9 @@ export function ResearchPanel({ selectedSymbol, timeRange, livePremium }: Resear
     }
   };
 
-  // Welcome message
-  useEffect(() => {
-    if (messages.length === 0) {
-      addMessage({
-        type: "answer",
-        text: `Welcome to rToken Lab. I can help you understand tokenized stock mechanics for **${selectedSymbol || "a symbol"}**.
-
-Ask me about:
-• Current premium/discount vs native stock
-• Historical premium events and their causes
-• Mint/redeem mechanics and arbitrage windows
-• Weekend/after-hours price behavior
-• Funding rates and carry costs
-
-Select a symbol from the header to begin.`,
-        sources: [],
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }, [selectedSymbol, addMessage]);
-
   return (
     <Box
+      className="research-panel"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -154,6 +188,7 @@ Select a symbol from the header to begin.`,
       }}
     >
       <Box
+        className="research-panel__heading"
         style={{
           padding: "var(--space-4)",
           borderBottom: "1px solid var(--color-border-subtle)",
@@ -166,27 +201,31 @@ Select a symbol from the header to begin.`,
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
             </svg>
-            <Text variant="heading-sm" weight="semibold">Research Assistant</Text>
+          <Text id={titleId} variant="heading-sm" weight="semibold">Research desk</Text>
           </Box>
-          {selectedSymbol && (
-            <Tooltip content={`Analyzing ${selectedSymbol}`} position="top">
-              <span style={{
-                padding: "var(--space-1) var(--space-2)",
-                borderRadius: "var(--radius-full)",
-                fontSize: "var(--text-xs)",
-                fontWeight: "var(--font-medium)",
-                fontFamily: "var(--font-mono)",
-                background: "var(--color-accent-info-bg)",
-                color: "var(--color-accent-info-fg)",
-              }}>
-                {selectedSymbol}
+          <Tooltip content={`Showing Bitget ${rTokenSnapshot?.symbol ?? `${symbol}USDT`} spot market`} position="top">
+              <span className="research-panel__symbol">
+                r{symbol}
               </span>
-            </Tooltip>
-          )}
+          </Tooltip>
         </Box>
       </Box>
 
-      <Box
+      <div className="research-brief">
+        <span className="section-kicker">ASK THE EVIDENCE</span>
+        <p>Live Bitget rToken data, hourly history, and a separate daily stock-close reference when available.</p>
+      </div>
+      <div
+        className="research-messages"
+        ref={messagesContainerRef}
+        role="log"
+        aria-label="Research conversation"
+        aria-live="polite"
+        tabIndex={0}
+        onScroll={(event) => {
+          const container = event.currentTarget;
+          shouldFollowMessagesRef.current = container.scrollHeight - container.clientHeight - container.scrollTop < 48;
+        }}
         style={{
           flex: 1,
           overflow: "auto",
@@ -196,8 +235,16 @@ Select a symbol from the header to begin.`,
           gap: "var(--space-4)",
         }}
       >
+        {messages.length === 0 && (
+          <div className="research-empty-state">
+            <span className="research-empty-state__index">01 / EVIDENCE REVIEW</span>
+            <p>Ask what changed in the observed hourly closes, what the live snapshot shows, and what remains uncertain.</p>
+            <span>AI assists the research. You make the call.</span>
+          </div>
+        )}
         {messages.map((msg, i) => (
           <Box
+            className={`research-message research-message--${msg.type}`}
             key={`${msg.timestamp}-${i}`}
             style={{
               display: "flex",
@@ -205,31 +252,9 @@ Select a symbol from the header to begin.`,
               maxWidth: "100%",
             }}
           >
-            <Box
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "var(--text-xs)",
-                fontWeight: "var(--font-bold)",
-                background: msg.type === "question"
-                  ? "var(--color-accent-info-bg)"
-                  : msg.type === "answer"
-                  ? "var(--color-accent-positive-bg)"
-                  : "var(--color-accent-negative-bg)",
-                color: msg.type === "question"
-                  ? "var(--color-accent-info-fg)"
-                  : msg.type === "answer"
-                  ? "var(--color-accent-positive-fg)"
-                  : "var(--color-accent-negative-fg)",
-              }}
-            >
+            <span className={`research-message__mark research-message__mark--${msg.type}`} aria-hidden="true">
               {msg.type === "question" ? "?" : msg.type === "answer" ? "✓" : "!"}
-            </Box>
+            </span>
             <Box style={{ flex: 1, minWidth: 0 }}>
               <Box flex alignItems="center" gap={2} style={{ marginBottom: "var(--space-1)" }}>
                 <Text variant="caption" color="muted" mono>
@@ -282,13 +307,21 @@ Select a symbol from the header to begin.`,
             </Box>
           </Box>
         ))}
-        <div ref={messagesEndRef} />
         {isLoading && (
-          <LoadingState variant="dots" size="sm" message="Analyzing..." />
+          <section className="research-live-response" aria-label="Research response in progress">
+            <div className="research-progress" role="status" aria-live="polite" aria-label="Preparing your evidence-based explanation">
+              <div><span>[01/03]</span><strong>Reading supplied Bitget snapshot and candle evidence</strong><b>DONE</b></div>
+              <div className="research-progress__active"><span>[02/03]</span><strong>{streamingText ? "Writing the explanation" : "Requesting an explanation from the research service"}</strong><b>{streamingText ? "STREAMING" : "IN PROGRESS"}</b></div>
+              <div className="research-progress__pending"><span>[03/03]</span><strong>Checking that the response is complete</strong><b>WAITING</b></div>
+            </div>
+            {streamingText && <div className="research-streaming-draft" aria-live="off"><span>DRAFT · NOT COMPLETE</span><p>{streamingText}</p></div>}
+          </section>
         )}
-      </Box>
+        {requestCancelled && <div className="research-cancelled" role="status">Request cancelled. No partial answer was saved.</div>}
+      </div>
 
       <Box
+        className="research-composer"
         style={{
           padding: "var(--space-4)",
           borderTop: "1px solid var(--color-border-subtle)",
@@ -302,6 +335,7 @@ Select a symbol from the header to begin.`,
             }}
           >
             <textarea
+              className="research-composer__input"
               ref={inputRef}
               value={inputValue}
               onChange={(e) => {
@@ -319,41 +353,40 @@ Select a symbol from the header to begin.`,
                 event.currentTarget.style.boxShadow = "none";
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about rToken mechanics, premium events, mint/redeem..."
+              placeholder="Ask about rToken mechanics, evidence requirements, and data limits..."
               style={{
                 width: "100%",
-                minHeight: 68,
+                minHeight: 82,
                 maxHeight: 140,
-                padding: "var(--space-3)",
-                paddingRight: "var(--space-10)",
+                padding: "12px 44px 12px 14px",
                 background: "var(--color-bg-base)",
                 border: "1px solid var(--color-border-default)",
                 borderRadius: "var(--radius-default)",
                 color: "var(--color-fg-primary)",
                 fontSize: "var(--text-sm)",
-                lineHeight: "var(--leading-relaxed)",
+                lineHeight: 1.5,
                 fontFamily: "inherit",
-                resize: "vertical",
+                 resize: "none",
                 outline: "none",
                 transition: "border-color var(--duration-fast), box-shadow var(--duration-fast)",
               }}
               disabled={isLoading}
             />
             <Button
-              type="submit"
+              type={isLoading ? "button" : "submit"}
               size="sm"
-              disabled={!inputValue.trim() || isLoading}
+              aria-label={isLoading ? "Cancel research request" : "Send research question"}
+              disabled={!inputValue.trim() && !isLoading}
+              onClick={isLoading ? cancelRequest : undefined}
               style={{
                 position: "absolute",
                 bottom: "var(--space-2)",
                 right: "var(--space-2)",
+                minWidth: isLoading ? 72 : undefined,
               }}
             >
               {isLoading ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
-                  <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" strokeOpacity="0.75" />
-                </svg>
+                <span>Cancel</span>
               ) : (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <line x1="22" y1="2" x2="11" y2="13" />
@@ -388,127 +421,30 @@ Select a symbol from the header to begin.`,
   );
 }
 
+function buildEvidenceFallback(snapshot: RTokenSnapshot | null | undefined, snapshotStatus: "loading" | "live" | "unavailable", symbol: string, candleEvidence: string | null): string {
+  if (snapshot) {
+    return [
+      "**EVIDENCE SUMMARY · AI explanation unavailable**",
+      "The research service did not return a complete explanation. These verified observations are shown without an AI interpretation.",
+      `**Observed Bitget snapshot:** ${snapshot.symbol} last ${snapshot.lastPrice} USDT; bid ${snapshot.bidPrice} (${snapshot.bidSize}); ask ${snapshot.askPrice} (${snapshot.askSize}). Ticker timestamp ${snapshot.tickerTimestamp}; retrieved ${snapshot.retrievedAt}.`,
+      `**Quote checks:** bid/ask spread ${snapshot.spreadPercent.toFixed(2)}%. ${snapshot.warnings.length ? snapshot.warnings.join(" ") : "No basic quote-quality warning detected."}`,
+      `**Limits:** this is an rToken spot-market snapshot only. Any independent stock close is displayed separately with its session date and is not synchronized. No premium, NAV, or trade conclusion is provided.`,
+      candleEvidence ? `**Observed hourly history:**\n${candleEvidence}` : "Hourly candle evidence is not available to this answer.",
+    ].join("\n\n");
+  }
+  return [
+    "**EVIDENCE SUMMARY · AI explanation unavailable**",
+    "The research service did not return a complete explanation. These verified observations are shown without an AI interpretation.",
+    `No fresh Bitget ${symbol} ticker is available${snapshotStatus === "loading" ? " yet" : ""}. I can’t report a current rToken price.`,
+    candleEvidence ? `**Observed hourly history:**\n${candleEvidence}` : "Hourly candle evidence is not available to this answer.",
+    "The snapshot will only be shown after the selected Bitget spot symbol, response fields, and freshness checks pass.",
+  ].join("\n\n");
+}
+
 
 function formatTelemetryText(text: string): string {
   return text
     .replace(/^•\s*/gm, "> ")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/^[-*]\s+/gm, "> ");
-}
-
-function generateMockResponse(
-  question: string,
-  symbol: string | null,
-  timeRange: { start: number; end: number } | null
-): ResearchMessage {
-  const lower = question.toLowerCase();
-
-  if (lower.includes("premium") || lower.includes("discount")) {
-    return createResearchAnswer(
-      `The current premium for **${symbol || "AAPL"}** rToken is **+0.72%** (72 bps) vs native stock.
-
-This reflects temporary weekend demand as US markets are closed while rToken trades 24/7. The premium typically reverts by Monday 14:30 UTC when native markets reopen.
-
-**Key observations:**
-• Premium spiked to +1.8% during Sunday's Fed speech
-• Average weekend premium: +0.45% over last 30 days
-• Reversion half-life: ~4.2 hours after market open
-
-The premium is calculated as: (rToken Price - Native Price) / Native Price × 100. Native price from IEX feed, rToken from Bitget spot market.`,
-      [
-        { endpoint: "equity_price_quote", timestamp: new Date().toISOString(), data: { symbol } },
-        { endpoint: "crypto_spot_ticker", timestamp: new Date().toISOString(), data: { symbol: `R${symbol}/USDT` } },
-      ],
-      [
-        createHighlightTimeRange(
-          Math.floor(Date.now() / 1000) - 2 * 24 * 60 * 60,
-          Math.floor(Date.now() / 1000) - 1 * 24 * 60 * 60,
-          "Weekend premium spike detected"
-        ),
-      ]
-    );
-  }
-
-  if (lower.includes("mint") || lower.includes("redeem") || lower.includes("arbitrage")) {
-    return createResearchAnswer(
-      `**Mint/Redeem Mechanism for ${symbol || "AAPL"} rToken**
-
-When rToken trades at a premium to NAV:
-1. **Mint**: Authorized participants buy native shares → deliver to custodian → receive new rTokens → sell rTokens at premium → pocket difference
-2. **Redeem**: When rToken trades at discount, buy rTokens → redeem for native shares → sell shares at higher price
-
-**Current state for ${symbol || "AAPL"}:**
-• No active mint/redeem events in last 7 days
-• Premium of +0.72% is below typical mint threshold (+1.5%)
-• Binance perpetual funding: 0.008%/8h (annualized ~3.5%)
-
-**Arbitrage window** opens when premium > mint cost (fees + spread + custody). For AAPL, estimated threshold: +1.5% to +2%.`,
-      [
-        { endpoint: "crypto_market", timestamp: new Date().toISOString(), data: { is_rwa: true } },
-        { endpoint: "crypto_futures_funding_rate", timestamp: new Date().toISOString(), data: { symbol: `${symbol}/USDT` } },
-      ],
-      [
-        createSetView("flow"),
-      ]
-    );
-  }
-
-  if (lower.includes("weekend") || lower.includes("after.hours") || lower.includes("24/7")) {
-    return createResearchAnswer(
-      `**7×24 Price Discovery for ${symbol || "AAPL"}**
-
-rToken enables continuous price discovery while native US markets are closed (16:00-09:30 ET, weekends, holidays).
-
-**Weekend behavior (last 4 weekends):**
-| Weekend | Peak Premium | Duration | Trigger |
-|---------|-------------|----------|---------|
-| Sep 14-15 | +1.8% | 14h | Fed policy speech |
-| Sep 7-8 | +0.3% | 6h | Low volume drift |
-| Aug 31-Sep 1 | +1.1% | 10h | Geopolitical news |
-| Aug 24-25 | +0.6% | 8h | Earnings leak |
-
-**Pattern**: Premiums build during Asian/European hours (Sunday 20:00-23:00 UTC), peak before US pre-market, revert within 2-4 hours of Monday open.
-
-This creates a **mean-reversion opportunity**: short rToken premium Sunday night, cover Monday 14:30 UTC.`,
-      [
-        { endpoint: "equity_price_historical", timestamp: new Date().toISOString(), data: { symbol } },
-        { endpoint: "crypto_futures_kline", timestamp: new Date().toISOString(), data: { symbol: `${symbol}/USDT` } },
-      ],
-      [
-        createHighlightTimeRange(
-          Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60,
-          Math.floor(Date.now() / 1000),
-          "Last 7 days weekend premiums"
-        ),
-        createSetView("heatmap"),
-      ]
-    );
-  }
-
-  // Default response
-  return createResearchAnswer(
-    `I can help you analyze **${symbol || "AAPL"}** rToken mechanics. Try asking about:
-
-• **Premium/Discount**: "What's the current premium?" "Show largest premium this week"
-• **Mint/Redeem**: "Explain the arb mechanism" "When does mint become profitable?"
-• **Time Analysis**: "Weekend behavior" "After-hours price action"
-• **Funding**: "What's the funding rate?" "Cost of carry vs native"
-
-Select a time range in the timeline or click a heatmap cell for focused analysis.`,
-    [],
-    []
-  );
-}
-
-function createHighlightTimeRange(start: number, end: number, reason: string): CanvasEvent {
-  return {
-    type: "highlight-time-range",
-    start: new Date(start * 1000).toISOString(),
-    end: new Date(end * 1000).toISOString(),
-    reason,
-  };
-}
-
-function createSetView(view: "price" | "premium" | "heatmap" | "flow" | "funding"): CanvasEvent {
-  return { type: "set-view", view };
 }

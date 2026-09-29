@@ -1,204 +1,257 @@
-import { useState, useEffect, createContext, useContext } from "react";
-import { getMcpClient, initializeMcpClient } from "@rtoken-lab/mcp-client";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { gsap } from "gsap";
 
 import { Header } from "./components/Header";
+import type { RTokenMarket } from "./features/rtoken-markets";
+import { fetchRTokenMarkets } from "./features/rtoken-markets";
 import { ResearchPanel } from "./features/research-panel/ResearchPanel";
 import { MechanicsCanvas } from "./features/mechanics-canvas/MechanicsCanvas";
-import { ThesisSandbox } from "./features/thesis-sandbox/ThesisSandbox";
-import { TimelineBar } from "./components/TimelineBar";
-import { LiquidityBackground } from "./components/LiquidityBackground";
-import { ViewTabs } from "./components/ViewTabs";
-import { useStore } from "./state/store";
-import { canvasEventBus, createSymbol } from "@rtoken-lab/core";
-import type { CanvasEvent, NormalizedPremium } from "@rtoken-lab/core";
-
-const MCP_ENABLED = import.meta.env.VITE_ENABLE_LIVE_MCP !== "false";
-
-// ============================================================================
-// App Providers
-// ============================================================================
-
-interface AppContextValue {
-  selectedSymbol: string | null;
-  setSelectedSymbol: (symbol: string | null) => void;
-  timeRange: { start: number; end: number } | null;
-  setTimeRange: (range: { start: number; end: number } | null) => void;
-  activeView: "price" | "premium" | "heatmap" | "flow" | "funding";
-  setActiveView: (view: "price" | "premium" | "heatmap" | "flow" | "funding") => void;
-}
-
-const AppContext = createContext<AppContextValue | null>(null);
-
-export function useAppContext() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useAppContext must be used within AppProvider");
-  return ctx;
-}
-
-function AppProvider({ children }: { children: React.ReactNode }) {
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>("AAPL");
-  const [timeRange, setTimeRange] = useState<{ start: number; end: number } | null>(() => {
-    const end = Math.floor(Date.now() / 1000);
-    const start = end - 7 * 24 * 60 * 60;
-    return { start, end };
-  });
-  const [activeView, setActiveView] = useState<"price" | "premium" | "heatmap" | "flow" | "funding">("price");
-
-  return (
-    <AppContext.Provider
-      value={{
-        selectedSymbol,
-        setSelectedSymbol,
-        timeRange,
-        setTimeRange,
-        activeView,
-        setActiveView,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
-  );
-}
+import { fetchRTokenSnapshot, RTOKEN_SNAPSHOT_MAX_AGE_MS } from "./features/rtoken-snapshot";
+import type { RTokenSnapshot } from "./features/rtoken-snapshot";
+import { fetchRTokenCandles, selectRTokenCandleRange } from "./features/rtoken-candles";
+import type { RTokenCandle, RTokenCandleHistory, RTokenCandleRange } from "./features/rtoken-candles";
+import { fetchRTokenStockClose } from "./features/rtoken-stock-close";
+import type { RTokenStockClose } from "./features/rtoken-stock-close";
+import { LandingPage } from "./features/landing/LandingPage";
 
 // ============================================================================
 // Main App Component
 // ============================================================================
 
 function AppInner() {
-  const { selectedSymbol, setSelectedSymbol, timeRange, setTimeRange, activeView, setActiveView } = useAppContext();
-  const { addNotification } = useStore();
-  const [livePremium, setLivePremium] = useState<NormalizedPremium | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<RTokenMarket>({ symbol: "RAAPLUSDT", baseCoin: "rAAPL" });
+  const [markets, setMarkets] = useState<RTokenMarket[]>([]);
+  const [marketsStatus, setMarketsStatus] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [rTokenSnapshot, setRTokenSnapshot] = useState<RTokenSnapshot | null>(null);
+  const [snapshotStatus, setSnapshotStatus] = useState<"loading" | "live" | "unavailable">("loading");
+  const [candleState, setCandleState] = useState<{
+    symbol: string;
+    status: "loading" | "live" | "unavailable";
+    history?: RTokenCandleHistory;
+    error?: string;
+  } | null>(null);
+  const [showWorkbench, setShowWorkbench] = useState(false);
+  const [candleRange, setCandleRange] = useState<RTokenCandleRange>("1W");
+  const [stockCloseState, setStockCloseState] = useState<{
+    symbol: string;
+    status: "loading" | "available" | "unavailable";
+    data?: RTokenStockClose;
+    error?: string;
+  } | null>(null);
+  const transitionRef = useRef<HTMLDivElement>(null);
+  const handleMarketChange = (market: RTokenMarket) => {
+    setRTokenSnapshot(null);
+    setSnapshotStatus("loading");
+    setSelectedMarket(market);
+  };
 
   useEffect(() => {
-    if (!MCP_ENABLED || !selectedSymbol) return;
-    let cancelled = false;
-    getMcpClient()
-      .getPremiumData(createSymbol(selectedSymbol), true)
-      .then((premium) => {
-        if (!cancelled) setLivePremium(premium);
+    const controller = new AbortController();
+    fetchRTokenMarkets(controller.signal)
+      .then((availableMarkets) => {
+        setMarkets(availableMarkets);
+        setMarketsStatus("ready");
       })
       .catch((error: unknown) => {
-        if (!cancelled) {
-          setLivePremium(null);
-          console.warn("Live premium unavailable; using demo surface.", error);
-        }
+        if (controller.signal.aborted) return;
+        console.warn("Bitget Reality market list unavailable.", error);
+        setMarketsStatus("unavailable");
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+    const controller = new AbortController();
+    setRTokenSnapshot(null);
+    setSnapshotStatus("loading");
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const snapshot = await fetchRTokenSnapshot(selectedMarket.symbol, controller.signal);
+        if (!active) return;
+        setRTokenSnapshot(snapshot);
+        setSnapshotStatus("live");
+      } catch (error) {
+        if (!active) return;
+        console.warn(`Bitget ${selectedMarket.symbol} spot snapshot unavailable.`, error);
+        setRTokenSnapshot(null);
+        setSnapshotStatus("unavailable");
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 30_000);
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [selectedMarket.symbol]);
+
+  useEffect(() => {
+    if (!rTokenSnapshot) return;
+    const ageMs = Date.now() - Date.parse(rTokenSnapshot.tickerTimestamp);
+    const expiresIn = Math.max(0, RTOKEN_SNAPSHOT_MAX_AGE_MS - ageMs);
+    const timeout = window.setTimeout(() => {
+      setRTokenSnapshot(null);
+      setSnapshotStatus("unavailable");
+    }, expiresIn);
+    return () => window.clearTimeout(timeout);
+  }, [rTokenSnapshot]);
+
+  useEffect(() => {
+    if (!showWorkbench) return;
+    const symbol = selectedMarket.symbol;
+    const controller = new AbortController();
+    let active = true;
+    setCandleState({ symbol, status: "loading" });
+    fetchRTokenCandles(symbol, controller.signal)
+      .then((history) => {
+        if (!active) return;
+        setCandleState({ symbol, status: "live", history });
+      })
+      .catch((error: unknown) => {
+        if (!active || controller.signal.aborted) return;
+        console.warn(`Bitget ${symbol} hourly candles unavailable.`, error);
+        setCandleState({
+          symbol,
+          status: "unavailable",
+          error: error instanceof Error ? error.message : "Bitget candle history is unavailable.",
+        });
       });
     return () => {
-      cancelled = true;
+      active = false;
+      controller.abort();
     };
-  }, [selectedSymbol]);
+  }, [selectedMarket.symbol, showWorkbench]);
 
-  // Initialize MCP client
+  const stockSymbol = selectedMarket.baseCoin.replace(/^r/, "");
   useEffect(() => {
-    if (MCP_ENABLED) {
-      initializeMcpClient().catch((err) => {
-        console.error("Failed to initialize MCP client:", err);
-        addNotification({
-          type: "error",
-          title: "Connection Error",
-          message: "Failed to connect to Bitget MCP server. Running in demo mode.",
+    if (!showWorkbench) return;
+    const controller = new AbortController();
+    let active = true;
+    setStockCloseState({ symbol: stockSymbol, status: "loading" });
+    fetchRTokenStockClose(stockSymbol, controller.signal)
+      .then((data) => {
+        if (active) setStockCloseState({ symbol: stockSymbol, status: "available", data });
+      })
+      .catch((error: unknown) => {
+        if (!active || controller.signal.aborted) return;
+        setStockCloseState({
+          symbol: stockSymbol,
+          status: "unavailable",
+          error: error instanceof Error ? error.message : "Daily stock close unavailable.",
         });
       });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [showWorkbench, stockSymbol]);
+
+  const currentCandleState = candleState?.symbol === selectedMarket.symbol
+    ? candleState
+    : { symbol: selectedMarket.symbol, status: "loading" as const };
+  const candles: RTokenCandle[] = currentCandleState.history?.candles ?? [];
+  const candleHistory: RTokenCandleHistory | null = currentCandleState.history ?? null;
+  const visibleCandles = selectRTokenCandleRange(candles, candleRange);
+  const currentStockClose = stockCloseState?.symbol === stockSymbol ? stockCloseState : null;
+
+  const transitionView = useCallback((nextView: boolean) => {
+    const curtain = transitionRef.current;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!curtain || reducedMotion) {
+      setShowWorkbench(nextView);
+      window.scrollTo({ top: 0, behavior: "auto" });
+      return;
     }
-  }, [addNotification]);
 
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent("rtoken-view-change", { detail: activeView }));
-  }, [activeView]);
-
-  // Listen for canvas events from Research Panel
-  useEffect(() => {
-    const unsub = canvasEventBus.on("set-comparison", (event: CanvasEvent) => {
-      if (event.type === "set-comparison") {
-        setSelectedSymbol(event.symbol);
-      }
-    });
-    return unsub;
-  }, [setSelectedSymbol]);
-
-  useEffect(() => {
-    const unsub = canvasEventBus.on("set-view", (event: CanvasEvent) => {
-      if (event.type === "set-view") {
-        setActiveView(event.view);
-      }
-    });
-    return unsub;
-  }, [setActiveView]);
-
-  useEffect(() => {
-    const unsub = canvasEventBus.on("set-time-range", (event: CanvasEvent) => {
-      if (event.type === "set-time-range") {
-        setTimeRange({
-          start: Math.floor(new Date(event.start).getTime() / 1000),
-          end: Math.floor(new Date(event.end).getTime() / 1000),
+    gsap.killTweensOf(curtain);
+    gsap.set(curtain, { transformOrigin: nextView ? "bottom center" : "top center" });
+    gsap.to(curtain, {
+      scaleY: 1,
+      duration: 0.48,
+      ease: "power3.inOut",
+      onComplete: () => {
+        setShowWorkbench(nextView);
+        window.scrollTo({ top: 0, behavior: "auto" });
+        requestAnimationFrame(() => {
+          gsap.to(curtain, {
+            scaleY: 0,
+            duration: 0.62,
+            ease: "power3.inOut",
+            onComplete: () => gsap.set(curtain, { clearProps: "all" }),
+          });
         });
-      }
+      },
     });
-    return unsub;
-  }, [setTimeRange]);
-
-  useEffect(() => {
-    const unsub = canvasEventBus.on("highlight-time-range", (event: CanvasEvent) => {
-      if (event.type === "highlight-time-range") {
-        setTimeRange({
-          start: Math.floor(new Date(event.start).getTime() / 1000),
-          end: Math.floor(new Date(event.end).getTime() / 1000),
-        });
-      }
-    });
-    return unsub;
-  }, [setTimeRange]);
+  }, []);
+  const openWorkbench = useCallback(() => transitionView(true), [transitionView]);
+  const panelTitleId = "research-panel-title";
 
   return (
-    <div className="app-layout">
-      <LiquidityBackground />
-      <Header
-        selectedSymbol={selectedSymbol}
-        onSymbolChange={setSelectedSymbol}
-        activeView={activeView}
-        onViewChange={setActiveView}
-        livePremium={livePremium}
-      />
-
-      <aside className="app-left-panel panel">
-        <ResearchPanel
-          selectedSymbol={selectedSymbol}
-          timeRange={timeRange}
-          livePremium={livePremium}
-        />
-      </aside>
-
-      <main className="app-center-canvas">
-        <ViewTabs
-          activeView={activeView}
-          onChange={setActiveView}
-          className="app-tabs"
-        />
-        <div className="canvas-container">
-          <MechanicsCanvas
-            symbol={selectedSymbol}
-            timeRange={timeRange}
-            view={activeView}
-            livePremium={livePremium}
-          />
-        </div>
-        <TimelineBar className="app-footer" />
-      </main>
-
-      <aside className="app-right-panel panel">
-        <ThesisSandbox
-          selectedSymbol={selectedSymbol}
-          timeRange={timeRange}
-        />
-      </aside>
+    <div className="app-document">
+      <div className="app-transition-curtain" aria-hidden="true" ref={transitionRef} />
+      {showWorkbench ? (
+        <section className="app-workbench" id="workbench" aria-label="rToken Lab workbench">
+          <div className="app-workbench__return">
+            <button type="button" onClick={() => transitionView(false)}>← Return to field note</button>
+            <span>LIVE BITGET EVIDENCE · RESEARCH WORKBENCH</span>
+          </div>
+          <div className="app-layout">
+            <Header
+              dataStatus={snapshotStatus}
+              selectedMarket={selectedMarket}
+              markets={markets}
+              marketsStatus={marketsStatus}
+              onMarketChange={handleMarketChange}
+            />
+            <aside className="app-research-panel panel" aria-labelledby={panelTitleId}>
+              <ResearchPanel
+                titleId={panelTitleId}
+                rTokenSnapshot={rTokenSnapshot}
+                snapshotStatus={snapshotStatus}
+                candles={visibleCandles}
+                candleStatus={currentCandleState.status}
+                candleRetrievedAt={candleHistory?.retrievedAt ?? null}
+                symbol={selectedMarket.baseCoin.replace(/^r/, "")}
+                candleRange={candleRange}
+                stockClose={currentStockClose?.data ?? null}
+                stockCloseStatus={currentStockClose?.status ?? "loading"}
+                stockCloseError={currentStockClose?.error ?? null}
+              />
+            </aside>
+            <main className="app-center-canvas">
+              <div className="canvas-container">
+                <MechanicsCanvas
+                  symbol={selectedMarket.baseCoin.replace(/^r/, "")}
+                  rTokenSnapshot={rTokenSnapshot}
+                  snapshotStatus={snapshotStatus}
+                  candles={visibleCandles}
+                  candleStatus={currentCandleState.status}
+                  candleRetrievedAt={candleHistory?.retrievedAt ?? null}
+                  candleError={currentCandleState.error ?? null}
+                  candleRange={candleRange}
+                  onCandleRangeChange={setCandleRange}
+                  stockClose={currentStockClose?.data ?? null}
+                  stockCloseStatus={currentStockClose?.status ?? "loading"}
+                  stockCloseError={currentStockClose?.error ?? null}
+                />
+              </div>
+            </main>
+          </div>
+        </section>
+      ) : (
+        <LandingPage onOpenWorkbench={openWorkbench} />
+      )}
     </div>
   );
 }
 
 export function App() {
-  return (
-    <AppProvider>
-      <AppInner />
-    </AppProvider>
-  );
+  return <AppInner />;
 }

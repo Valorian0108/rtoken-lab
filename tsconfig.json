@@ -10,7 +10,7 @@
     "exactOptionalPropertyTypes": false,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["node", "vite/client"],
+    "types": ["node"],
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,

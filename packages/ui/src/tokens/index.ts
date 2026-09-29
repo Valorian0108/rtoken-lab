@@ -65,17 +65,6 @@ export const colors = {
     tooltipBorder: "oklch(0.28 0.01 240 / 0.8)",
   },
 
-  // Heatmap gradient stops (premium/discount)
-  heatmap: {
-    deepNegative: "oklch(0.45 0.20 25)",   // Deep discount
-    negative: "oklch(0.55 0.18 25)",
-    slightNegative: "oklch(0.65 0.12 25)",
-    neutral: "oklch(0.28 0.01 240)",       // Zero premium
-    slightPositive: "oklch(0.55 0.15 142)",
-    positive: "oklch(0.62 0.18 142)",
-    deepPositive: "oklch(0.70 0.20 142)",  // Deep premium
-  },
-
   // Series colors (for multi-line charts)
   series: {
     native: "oklch(0.58 0.15 240)",        // Muted blue - native stock

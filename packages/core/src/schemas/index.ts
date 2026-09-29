@@ -1,22 +1,4 @@
 import { z } from "zod";
-import type {
-  Symbol,
-  Timestamp,
-  Price,
-  Volume,
-  Percentage,
-  PremiumBps,
-  DataSource,
-  QuoteData,
-  KlineData,
-  PremiumData,
-  FundingRateData,
-  OpenInterestData,
-  TimeRange,
-  Interval,
-  Exchange,
-  AssetType
-} from "../types";
 
 /**
  * Branded type schemas
@@ -45,13 +27,12 @@ export const SourceMetadataSchema = z.object({
   endpoint: z.string(),
   requestedAt: z.string().datetime(),
   receivedAt: z.string().datetime(),
+  dataTimestamp: z.string().datetime().optional(),
   symbol: SymbolSchema.optional(),
   interval: IntervalSchema.optional(),
   isLive: z.boolean(),
   limitations: z.array(z.string()).optional(),
 });
-
-type ParsedSourceMetadata = z.infer<typeof SourceMetadataSchema>;
 
 /**
  * MCP Response wrapper schemas

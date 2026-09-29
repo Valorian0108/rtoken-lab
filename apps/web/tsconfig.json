@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "types": ["node", "vite/client"],
     "outDir": "dist",
     "declaration": true,
     "declarationMap": true,

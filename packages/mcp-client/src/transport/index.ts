@@ -110,6 +110,38 @@ export const DoQueryParamsSchema = z.object({
 export type DoQueryParams = z.infer<typeof DoQueryParamsSchema>;
 
 /**
+ * Unwrap a Bitget MCP tool result and turn upstream error envelopes into useful errors.
+ */
+export function unwrapToolResult(result: unknown): unknown {
+  if (!result || typeof result !== "object") return result;
+  const envelope = result as {
+    structuredContent?: unknown;
+    content?: Array<{ text?: unknown }>;
+  };
+  let payload = envelope.structuredContent;
+
+  if (!payload && typeof envelope.content?.[0]?.text === "string") {
+    try {
+      payload = JSON.parse(envelope.content[0].text);
+    } catch {
+      payload = envelope.content[0].text;
+    }
+  }
+
+  if (!payload || typeof payload !== "object") return payload ?? result;
+  const response = payload as { success?: unknown; status_code?: unknown; error?: unknown; data?: unknown };
+  if (response.success === false) {
+    const detail = typeof response.data === "string"
+      ? response.data.replace(/\s+/g, " ").trim().slice(0, 180)
+      : typeof response.error === "string"
+        ? response.error
+        : "The source returned an unsuccessful response.";
+    throw new Error(`Bitget MCP source unavailable (upstream ${String(response.status_code ?? "error")}): ${detail}`);
+  }
+  return payload;
+}
+
+/**
  * SSE Event types
  */
 export interface SseEvent {
@@ -161,6 +193,7 @@ export interface HttpTransportConfig {
 export class HttpMcpTransport {
   private _sessionId: string | null = null;
   private initialized = false;
+  private initialization: Promise<InitializeResult> | null = null;
 
   constructor(
     private readonly config: HttpTransportConfig
@@ -175,6 +208,22 @@ export class HttpMcpTransport {
   }
 
   async initialize(clientInfo = { name: "rtoken-lab", version: "1.0.0" }): Promise<InitializeResult> {
+    if (this.initialized && this.initializeResult) return this.initializeResult;
+    if (this.initialization) {
+      return this.initialization;
+    }
+
+    this.initialization = this.initializeSession(clientInfo);
+    try {
+      return await this.initialization;
+    } finally {
+      this.initialization = null;
+    }
+  }
+
+  private initializeResult: InitializeResult | null = null;
+
+  private async initializeSession(clientInfo: { name: string; version: string }): Promise<InitializeResult> {
     const request: JsonRpcRequest = {
       jsonrpc: "2.0",
       id: 1,
@@ -189,6 +238,8 @@ export class HttpMcpTransport {
     const response = await this.post(request);
     const result = InitializeResultSchema.parse(response.result);
     this._sessionId = response.headers?.get("mcp-session-id") ?? null;
+    await this.postNotification({ jsonrpc: "2.0", method: "notifications/initialized" });
+    this.initializeResult = result;
     this.initialized = true;
     return result;
   }
@@ -224,23 +275,35 @@ export class HttpMcpTransport {
     };
 
     const response = await this.post(request);
-    return response.result;
+    return unwrapToolResult(response.result);
   }
 
   private async post(request: JsonRpcRequest): Promise<{ result: unknown; headers: Headers }> {
+    return this.send(request);
+  }
+
+  private async postNotification(notification: { jsonrpc: "2.0"; method: string; params?: unknown }): Promise<void> {
+    await this.send(notification);
+  }
+
+  private async send(
+    payload: JsonRpcRequest | { jsonrpc: "2.0"; method: string; params?: unknown },
+  ): Promise<{ result: unknown; headers: Headers }> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeoutMs ?? 30000);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        ...this.config.headers,
+      };
+      if (this._sessionId) headers["Mcp-Session-Id"] = this._sessionId;
+
       const response = await fetch(this.config.endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json, text/event-stream",
-          "Mcp-Session-Id": this._sessionId ?? "",
-          ...this.config.headers,
-        },
-        body: JSON.stringify(request),
+        headers,
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
 
@@ -248,6 +311,10 @@ export class HttpMcpTransport {
 
       if (!response.ok) {
         throw new Error(`MCP HTTP error: ${response.status} ${response.statusText}`);
+      }
+
+      if (response.status === 202 || response.status === 204) {
+        return { result: undefined, headers: response.headers };
       }
 
       const contentType = response.headers.get("content-type") ?? "";
@@ -271,6 +338,8 @@ export class HttpMcpTransport {
     if (!reader) throw new Error("No response body");
 
     let result: unknown = null;
+    let receivedResult = false;
+    let rpcError: { code?: number; message?: string } | null = null;
     const decoder = new TextDecoder();
 
     try {
@@ -289,8 +358,12 @@ export class HttpMcpTransport {
             const data = trimmed.slice(6);
             try {
               const parsed = JSON.parse(data);
-              if (parsed.result !== undefined) {
+              if (parsed.error !== undefined) {
+                rpcError = parsed.error;
+                receivedResult = true;
+              } else if (parsed.result !== undefined) {
                 result = parsed.result;
+                receivedResult = true;
               }
             } catch {
               // Ignore parse errors for non-JSON data
@@ -302,6 +375,12 @@ export class HttpMcpTransport {
       reader.releaseLock();
     }
 
+    if (!receivedResult) {
+      throw new Error("MCP event stream ended without a JSON-RPC result.");
+    }
+    if (rpcError) {
+      throw new Error(`MCP JSON-RPC error ${rpcError.code ?? ""}: ${rpcError.message ?? "Unknown error"}`.trim());
+    }
     return { result, headers: response.headers };
   }
 
@@ -309,6 +388,8 @@ export class HttpMcpTransport {
     // No explicit close needed for HTTP transport
     this._sessionId = null;
     this.initialized = false;
+    this.initializeResult = null;
+    this.initialization = null;
   }
 }
 

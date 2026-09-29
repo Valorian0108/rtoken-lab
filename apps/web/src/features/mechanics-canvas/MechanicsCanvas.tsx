@@ -1,237 +1,323 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { Box, Text } from "@rtoken-lab/ui";
-import type { NormalizedPremium } from "@rtoken-lab/core";
-import { getDemoScenario } from "./demo-scenarios";
-
-type ViewMode = "price" | "premium" | "heatmap" | "flow" | "funding";
+import type { RTokenSnapshot } from "../rtoken-snapshot";
+import type { RTokenCandle, RTokenCandleRange } from "../rtoken-candles";
+import type { RTokenStockClose } from "../rtoken-stock-close";
 
 interface MechanicsCanvasProps {
   symbol: string | null;
-  timeRange: { start: number; end: number } | null;
-  view: ViewMode;
-  livePremium?: NormalizedPremium | null;
+  rTokenSnapshot?: RTokenSnapshot | null;
+  snapshotStatus: "loading" | "live" | "unavailable";
+  candles: RTokenCandle[];
+  candleStatus: "loading" | "live" | "unavailable";
+  candleRetrievedAt: string | null;
+  candleError: string | null;
+  candleRange: RTokenCandleRange;
+  onCandleRangeChange: (range: RTokenCandleRange) => void;
+  stockClose: RTokenStockClose | null;
+  stockCloseStatus: "loading" | "available" | "unavailable";
+  stockCloseError: string | null;
 }
 
-interface Point {
-  timestamp: number;
-  native: number;
-  rToken: number;
-  premium: number;
-}
-
-function createDemoData(symbol: string, timeRange: { start: number; end: number }): { points: Point[]; scenario: string } {
-  const base = symbol === "NVDA" ? 850 : symbol === "TSLA" ? 250 : symbol === "MSFT" ? 400 : 180;
-  const points: Point[] = [];
-  let native = base;
-  let rToken = base * 1.003;
-  let seed = [...symbol].reduce((sum, character) => sum + character.charCodeAt(0), 0);
-  const random = () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  };
-  const scenario = getDemoScenario(symbol);
-
-  for (let timestamp = timeRange.start; timestamp <= timeRange.end; timestamp += 3600) {
-    const date = new Date(timestamp * 1000);
-    const isWeekend = date.getUTCDay() === 0 || date.getUTCDay() === 6;
-    const scenarioBias = scenario.bias && (scenario.id !== "market-hours" || isWeekend) ? scenario.bias : 0;
-    native *= 1 + (random() - 0.5) * 0.0018;
-    rToken *= 1 + (random() - 0.5) * 0.003 + scenarioBias;
-    const premium = ((rToken - native) / native) * 10000;
-    points.push({ timestamp, native, rToken, premium });
-  }
-  return { points, scenario: scenario.label };
-}
-
-function pathFor(values: number[], width: number, height: number, min: number, max: number): string {
+function pathFor(candles: RTokenCandle[], width: number, height: number, min: number, max: number): string {
   const range = max - min || 1;
-  return values
-    .map((value, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * width;
-      const y = height - ((value - min) / range) * height;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
+  const firstTimestamp = candles[0]?.timestamp ?? 0;
+  const timestampRange = candles.length > 1 ? candles.at(-1)!.timestamp - firstTimestamp || 1 : 1;
+  return candles.map((candle, index) => {
+    const x = ((candle.timestamp - firstTimestamp) / timestampRange) * width;
+    const y = height - ((candle.close - min) / range) * height;
+    return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
 }
 
-export function MechanicsCanvas({ symbol, timeRange, view, livePremium }: MechanicsCanvasProps) {
+export function MechanicsCanvas({
+  symbol,
+  rTokenSnapshot,
+  snapshotStatus,
+  candles,
+  candleStatus,
+  candleRetrievedAt,
+  candleError,
+  candleRange,
+  onCandleRangeChange,
+  stockClose,
+  stockCloseStatus,
+  stockCloseError,
+}: MechanicsCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const viewLayerRef = useRef<SVGGElement>(null);
-  const demo = useMemo(
-    () => (symbol && timeRange ? createDemoData(symbol, timeRange) : { points: [], scenario: "WAITING" }),
-    [symbol, timeRange],
-  );
-  const data = demo.points;
+  const [chartHeight, setChartHeight] = useState(460);
+  const [hoveredCandleIndex, setHoveredCandleIndex] = useState<number | null>(null);
+  const previousSnapshotRef = useRef<RTokenSnapshot | null>(null);
+  const [changedQuoteFields, setChangedQuoteFields] = useState<Set<"last" | "bid" | "ask">>(() => new Set());
+  const quoteChangeTimeoutRef = useRef<number | null>(null);
+  const currentCandleStatus = candleStatus;
+
+  useEffect(() => {
+    setHoveredCandleIndex(null);
+  }, [symbol, candleStatus]);
+
+  useEffect(() => {
+    if (!rTokenSnapshot) {
+      previousSnapshotRef.current = null;
+      setChangedQuoteFields(new Set());
+      return;
+    }
+
+    const previous = previousSnapshotRef.current;
+    previousSnapshotRef.current = rTokenSnapshot;
+    if (!previous || previous.symbol !== rTokenSnapshot.symbol) return;
+
+    const changed = new Set<"last" | "bid" | "ask">();
+    if (previous.lastPrice !== rTokenSnapshot.lastPrice) changed.add("last");
+    if (previous.bidPrice !== rTokenSnapshot.bidPrice) changed.add("bid");
+    if (previous.askPrice !== rTokenSnapshot.askPrice) changed.add("ask");
+    if (changed.size === 0) return;
+
+    setChangedQuoteFields(changed);
+    if (quoteChangeTimeoutRef.current !== null) window.clearTimeout(quoteChangeTimeoutRef.current);
+    quoteChangeTimeoutRef.current = window.setTimeout(() => {
+      setChangedQuoteFields(new Set());
+      quoteChangeTimeoutRef.current = null;
+    }, 850);
+  }, [rTokenSnapshot]);
+
+  useEffect(() => () => {
+    if (quoteChangeTimeoutRef.current !== null) window.clearTimeout(quoteChangeTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     const svg = svgRef.current;
-    if (!svg) return;
+    if (!svg || typeof ResizeObserver === "undefined") return;
+
+    const updateAspectRatio = () => {
+      const { width: renderedWidth, height: renderedHeight } = svg.getBoundingClientRect();
+      if (renderedWidth <= 0 || renderedHeight <= 0) return;
+      const nextHeight = (1000 * renderedHeight) / renderedWidth;
+      setChartHeight((current) => Math.abs(current - nextHeight) < 0.5 ? current : nextHeight);
+    };
+
+    const observer = new ResizeObserver(updateAspectRatio);
+    observer.observe(svg);
+    updateAspectRatio();
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const paths = svg.querySelectorAll<SVGPathElement>("path[data-animated]");
     const context = gsap.context(() => {
       paths.forEach((path) => {
         const length = path.getTotalLength();
-        gsap.fromTo(
-          path,
+        gsap.fromTo(path,
           { strokeDasharray: length, strokeDashoffset: length, opacity: 0.25 },
           { strokeDashoffset: 0, opacity: 1, duration: 0.8, ease: "power2.out" },
         );
       });
-      gsap.fromTo(
-        svg.querySelectorAll("rect[data-heat-cell]"),
-        { opacity: 0, scale: 0.96, transformOrigin: "center" },
-        { opacity: 1, scale: 1, duration: 0.45, stagger: 0.002, ease: "power1.out" },
-      );
     }, svg);
     return () => context.revert();
-  }, [data, view, symbol]);
+  }, [candles, symbol]);
 
-  useEffect(() => {
-    const layer = viewLayerRef.current;
-    if (!layer) return;
-    const context = gsap.context(() => {
-      gsap.fromTo(
-        layer,
-        { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.55, ease: "power3.out", overwrite: true },
-      );
-    }, layer);
-    return () => context.revert();
-  }, [view]);
-
-  if (!symbol || !timeRange || data.length < 2) {
+  if (!symbol) {
     return (
       <Box className="canvas-placeholder">
         <Text variant="heading-md" color="secondary">Select an instrument to begin</Text>
-        <Text variant="body-sm" color="muted">The research surface will show price, premium, and 7×24 behavior here.</Text>
+        <Text variant="body-sm" color="muted">Choose a verified Bitget Reality spot instrument to load its hourly rToken history.</Text>
       </Box>
     );
   }
 
+  const hasLiveHistory = currentCandleStatus === "live" && candles.length >= 2;
   const width = 1000;
-  const height = 460;
-  const nativeValues = data.map((point) => point.native);
-  const rTokenValues = data.map((point) => point.rToken);
-  const allPrices = [...nativeValues, ...rTokenValues];
-  const minPrice = Math.min(...allPrices);
-  const maxPrice = Math.max(...allPrices);
-  const maxPremium = Math.max(...data.map((point) => Math.abs(point.premium)), 1);
-  const nativePath = pathFor(nativeValues, width, height, minPrice, maxPrice);
-  const rTokenPath = pathFor(rTokenValues, width, height, minPrice, maxPrice);
-  const premiumPath = pathFor(data.map((point) => point.premium), width, height, -maxPremium, maxPremium);
-  const last = data.at(-1);
-  if (!last) return null;
+  const height = chartHeight;
+  const observedLow = hasLiveHistory ? Math.min(...candles.map((candle) => candle.low)) : 0;
+  const observedHigh = hasLiveHistory ? Math.max(...candles.map((candle) => candle.high)) : 1;
+  const padding = hasLiveHistory ? Math.max((observedHigh - observedLow) * 0.12, observedHigh * 0.002) : 0;
+  const minPrice = observedLow - padding;
+  const maxPrice = observedHigh + padding;
+  const chartPath = hasLiveHistory ? pathFor(candles, width, height, minPrice, maxPrice) : "";
+  const areaPath = chartPath ? `${chartPath} L${width},${height} L0,${height} Z` : "";
+  const hoveredCandle = hoveredCandleIndex === null ? null : candles[hoveredCandleIndex] ?? null;
+  const hoveredX = hoveredCandle && candles.length > 1
+    ? ((hoveredCandle.timestamp - candles[0]!.timestamp) / (candles.at(-1)!.timestamp - candles[0]!.timestamp || 1)) * width
+    : null;
+  const hoveredY = hoveredCandle
+    ? height - ((hoveredCandle.close - minPrice) / (maxPrice - minPrice || 1)) * height
+    : null;
+
+  const handleChartPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || candles.length < 2) return;
+    const pointerX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * width;
+    const firstTimestamp = candles[0]!.timestamp;
+    const lastTimestamp = candles.at(-1)!.timestamp;
+    const targetTimestamp = firstTimestamp + (pointerX / width) * (lastTimestamp - firstTimestamp);
+    let low = 0;
+    let high = candles.length - 1;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (candles[middle]!.timestamp < targetTimestamp) low = middle + 1;
+      else high = middle;
+    }
+    const previousIndex = Math.max(0, low - 1);
+    const selectedIndex = targetTimestamp - candles[previousIndex]!.timestamp <= candles[low]!.timestamp - targetTimestamp
+      ? previousIndex
+      : low;
+    setHoveredCandleIndex(selectedIndex);
+  };
+
+  const handleChartKeyDown = (event: React.KeyboardEvent<SVGSVGElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const currentIndex = hoveredCandleIndex ?? (event.key === "ArrowRight" ? -1 : candles.length);
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    setHoveredCandleIndex(Math.min(candles.length - 1, Math.max(0, currentIndex + direction)));
+  };
 
   return (
     <Box className="mechanics-surface">
       <Box className="mechanics-toolbar">
-        <Text variant="overline" color="muted">Mechanics canvas · {symbol}</Text>
-        <span className="demo-badge"><span className="demo-badge__dot" /> {demo.scenario} · DEMO SERIES</span>
+        <div>
+          <Text variant="overline" color="muted">BITGET REALITY SPOT / {rTokenSnapshot?.symbol ?? `R${symbol}USDT`}</Text>
+          <Text variant="heading-lg" color="primary">Bitget rToken history</Text>
+        </div>
+        <div className="mechanics-toolbar__controls" aria-label="rToken market and data state">
+          <div className="chart-range-control" role="group" aria-label="Hourly candle chart range">
+            {(["1D", "1W", "1M"] as const).map((range) => <button
+              key={range}
+              type="button"
+              aria-pressed={candleRange === range}
+              disabled={currentCandleStatus !== "live"}
+              onClick={() => onCandleRangeChange(range)}
+            >{range}</button>)}
+          </div>
+          <span className={`history-state history-state--${currentCandleStatus === "live" ? "loaded" : currentCandleStatus === "loading" ? "disabled" : "unavailable"}`} role="status">
+            {currentCandleStatus === "live" ? `BITGET · ${candleRange} HOURLY VIEW` : currentCandleStatus === "loading" ? "LOADING BITGET HISTORY" : "HISTORY UNAVAILABLE"}
+          </span>
+        </div>
       </Box>
 
-      <svg ref={svgRef} className="mechanics-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${symbol} rToken mechanics visualization`}>
-        <defs>
-          <linearGradient id="premium-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-accent-positive)" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="var(--color-accent-positive)" stopOpacity="0" />
-          </linearGradient>
-          <pattern id="instrument-grid" width="100" height="76" patternUnits="userSpaceOnUse">
-            <path d="M 100 0 L 0 0 0 76" fill="none" stroke="var(--color-chart-grid)" strokeWidth="1" />
-          </pattern>
-        </defs>
-        <g ref={viewLayerRef}>
-        <rect width={width} height={height} fill="transparent" />
-        <rect width={width} height={height} fill="url(#instrument-grid)" />
+      {rTokenSnapshot ? (
+        <section className="rtoken-snapshot" aria-label={`Bitget ${rTokenSnapshot.symbol} spot market snapshot`}>
+          <div className="rtoken-snapshot__heading">
+            <div className="rtoken-snapshot__instrument"><span>BITGET TICKER SNAPSHOT</span><strong>{rTokenSnapshot.symbol.replace(/USDT$/, "")} / USDT</strong></div>
+            <span className="history-state" role="status">BITGET SNAPSHOT · STOCK CLOSE IS DAILY</span>
+          </div>
+          <div className="rtoken-snapshot__prices">
+            <div className={`rtoken-snapshot__last${changedQuoteFields.has("last") ? " is-updated" : ""}`}>
+              <span>LAST TRADED</span><strong>{rTokenSnapshot.lastPrice.toFixed(2)} <small>USDT</small></strong>
+            </div>
+            <div className={`rtoken-snapshot__book${changedQuoteFields.has("bid") ? " is-updated" : ""}`}>
+              <span>BEST BID · {rTokenSnapshot.bidSize}</span><strong>{rTokenSnapshot.bidPrice.toFixed(2)} <small>USDT</small></strong>
+            </div>
+            <div className={`rtoken-snapshot__book${changedQuoteFields.has("ask") ? " is-updated" : ""}`}>
+              <span>BEST ASK · {rTokenSnapshot.askSize}</span><strong>{rTokenSnapshot.askPrice.toFixed(2)} <small>USDT</small></strong>
+            </div>
+          </div>
+          <div className="rtoken-snapshot__meta">
+            <span>Bitget ticker time {new Date(rTokenSnapshot.tickerTimestamp).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" })}</span>
+            <span>Retrieved {new Date(rTokenSnapshot.retrievedAt).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" })}</span>
+            <span>Bid/ask spread {rTokenSnapshot.spreadPercent.toFixed(2)}%</span>
+            <a href="https://www.bitget.com/api-doc/uta/reality/reality-trading-guide" target="_blank" rel="noreferrer">Bitget Reality market-data docs ↗</a>
+          </div>
+          {rTokenSnapshot.warnings.length > 0 && <ul className="rtoken-snapshot__warnings" aria-label="Quote quality warnings">{rTokenSnapshot.warnings.map((warning: string) => <li key={warning}>{warning}</li>)}</ul>}
+          <p className="rtoken-snapshot__limit">Bitget rToken snapshot is live market data. Any stock close below is the latest available daily close and is not synchronized with this quote.</p>
+        </section>
+      ) : (
+        <section className="rtoken-snapshot rtoken-snapshot--empty" aria-label={`Bitget R${symbol}USDT spot market snapshot`} role="status">
+          <strong>{snapshotStatus === "loading" ? `Checking the Bitget R${symbol} spot ticker…` : `R${symbol} spot ticker unavailable`}</strong>
+          <span>{snapshotStatus === "loading" ? "No previous values are shown while the request is pending." : `Could not verify a fresh R${symbol}USDT response. No cached quote or premium is shown.`}</span>
+        </section>
+      )}
 
-        {view === "price" && (
+      <div className="quote-provenance quote-provenance--empty">
+        <div className="quote-provenance__comparison-heading">
+          <strong>Reference only · daily stock ticker close</strong>
+          <span>Not live · not time-aligned · not a premium or fair-value estimate</span>
+        </div>
+        {stockClose ? (
+          <div className="stock-close-comparison" aria-label={`EODHD latest daily ${stockClose.symbol} ticker close`}>
+            <div><span>STOCK TICKER REFERENCE · {stockClose.symbol}</span><strong>{formatPrice(stockClose.close)} <small>USD</small></strong></div>
+            <div><span>OFFICIAL CLOSE DATE</span><strong>{stockClose.date}</strong></div>
+            <small>Source: <a href="https://eodhd.com/financial-apis/api-for-historical-data-and-volumes" target="_blank" rel="noreferrer">{stockClose.source} daily history ↗</a>{stockClose.tokenType === "demo" ? " · limited demo token" : ""} · retrieved {formatUtc(Date.parse(stockClose.retrievedAt))}</small>
+          </div>
+        ) : (
+          <div className="stock-close-unavailable" role={stockCloseStatus === "loading" ? "status" : "note"}>
+            <span>{stockCloseStatus === "loading" ? "Checking for the latest daily stock close…" : stockCloseError ?? "Daily stock close is unavailable."}</span>
+          </div>
+        )}
+        <p>This is a symbol-matched stock ticker reference, not confirmation of the rToken’s underlying, backing, or redemption rights. The Bitget quote is in USDT; the stock close is in USD, with no FX adjustment. The daily close usually predates the live Bitget quote. We do not calculate a premium or imply synchronized prices. The chart below remains Bitget rToken-only history.</p>
+      </div>
+
+      <div className="evidence-chart-frame" id="rtoken-history-chart">
+        {!hasLiveHistory ? (
+          <div className={`history-empty history-empty--${currentCandleStatus}`} role="status">
+            <span className="history-empty__badge">{currentCandleStatus === "loading" ? "[ FETCHING // BITGET HOURLY CANDLES ]" : "[ DATA_UNAVAILABLE // NO_HOURLY_CANDLES ]"}</span>
+            <strong>{currentCandleStatus === "loading" ? "Loading verified hourly candles" : "Hourly rToken history is unavailable"}</strong>
+            <span>{currentCandleStatus === "loading" ? `Checking up to 1,000 hourly candles for R${symbol}USDT, then showing those inside the selected time window.` : candleError ?? "A fresh, valid candle series could not be confirmed, so no price line is drawn."}</span>
+            <span>Source: Bitget Reality spot candles. No native-stock series or premium is shown.</span>
+          </div>
+        ) : (
           <>
-            <line x1="0" x2={width} y1={height / 2} y2={height / 2} stroke="var(--color-chart-grid)" />
-            <path data-animated d={nativePath} fill="none" stroke="var(--color-series-native)" strokeWidth="2.5" />
-            <path data-animated d={rTokenPath} fill="none" stroke="var(--color-series-rtoken-spot)" strokeWidth="2.5" />
-            <text x="18" y="44" fill="var(--color-series-native)" fontSize="12" fontFamily="var(--font-mono)">native {livePremium?.nativePrice.toFixed(2) ?? last.native.toFixed(2)}</text>
-            <text x="18" y="62" fill="var(--color-series-rtoken-spot)" fontSize="12" fontFamily="var(--font-mono)">rToken {livePremium?.rTokenPrice.toFixed(2) ?? last.rToken.toFixed(2)}</text>
+          <svg
+            ref={svgRef}
+            className="mechanics-svg"
+            viewBox={`0 0 ${width} ${height}`}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+         aria-label={`Bitget ${candleRange} hourly close prices for R${symbol}USDT, in USDT. rToken history only.`}
+            aria-describedby="rtoken-chart-instructions"
+            tabIndex={0}
+            onPointerMove={handleChartPointerMove}
+            onPointerLeave={() => setHoveredCandleIndex(null)}
+            onKeyDown={handleChartKeyDown}
+          >
+            <defs>
+              <linearGradient id="rtoken-area-fill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-accent-positive)" stopOpacity="0.14" />
+                <stop offset="100%" stopColor="var(--color-accent-positive)" stopOpacity="0.01" />
+              </linearGradient>
+              <pattern id="instrument-grid" width="100" height="76" patternUnits="userSpaceOnUse">
+                <path d="M 100 0 L 0 0 0 76" fill="none" stroke="var(--color-chart-grid)" strokeWidth="1" />
+              </pattern>
+            </defs>
+            <rect width={width} height={height} fill="transparent" />
+            <rect width={width} height={height} fill="url(#instrument-grid)" />
+            <path d={areaPath} fill="url(#rtoken-area-fill)" />
+            <path data-animated d={chartPath} fill="none" stroke="var(--color-accent-positive)" strokeWidth="7" strokeOpacity="0.1" vectorEffect="non-scaling-stroke" />
+            <path data-animated d={chartPath} fill="none" stroke="var(--color-accent-positive)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+            <text x="18" y="24" fill="var(--color-fg-muted)" fontSize="12" fontFamily="var(--font-mono)">{`BITGET SPOT · ${candles.length} HOURLY CANDLES · ${candleRange} VIEW · CLOSE IN USDT`}</text>
+            {hoveredX !== null && hoveredY !== null && hoveredCandle && <g className="chart-crosshair" aria-hidden="true">
+              <line x1={hoveredX} x2={hoveredX} y1="0" y2={height} />
+              <circle cx={hoveredX} cy={hoveredY} r="7" />
+            </g>}
+          </svg>
+          {hoveredCandle && <div className="chart-hover-hud" aria-hidden="true">
+            <span>HOURLY CLOSE <strong>{formatPrice(hoveredCandle.close)} USDT</strong></span>
+            <span>TIME <strong>{formatUtc(hoveredCandle.timestamp)}</strong></span>
+          </div>}
+          <span className="visually-hidden" id="rtoken-chart-instructions">Hover over the chart to inspect an hourly close. Focus the chart and use the left and right arrow keys to move between candles.</span>
           </>
         )}
-
-        {view === "premium" && (
-          <>
-            <line x1="0" x2={width} y1={height / 2} y2={height / 2} stroke="var(--color-chart-grid)" strokeDasharray="6 6" />
-            <path data-animated d={`${premiumPath} L ${width},${height / 2} L 0,${height / 2} Z`} fill="url(#premium-fill)" />
-            <path data-animated d={premiumPath} fill="none" stroke="var(--color-series-premium)" strokeWidth="2.5" />
-            <text x="18" y="44" fill="var(--color-series-premium)" fontSize="12" fontFamily="var(--font-mono)">premium {livePremium?.premiumBps.toFixed(1) ?? last.premium.toFixed(1)} bps</text>
-          </>
-        )}
-
-        {view === "heatmap" && <Heatmap data={data} width={width} height={height} />}
-        {view === "flow" && <FlowDiagram width={width} height={height} premium={last.premium} />}
-        {view === "funding" && <FundingSurface data={data} width={width} height={height} />}
-
-        <text x="18" y="24" fill="var(--color-fg-muted)" fontSize="12" fontFamily="var(--font-mono)">
-          {view.toUpperCase()} · {new Date(timeRange.start * 1000).toLocaleDateString()} — {new Date(timeRange.end * 1000).toLocaleDateString()}
-        </text>
-        </g>
-      </svg>
+      </div>
+      <div className="chart-footnote">
+        {hasLiveHistory ? <>
+          <span>Bitget public SPOT hourly candles · close prices in USDT · no native-stock series.</span>
+          <span>Observed {formatUtc(candles[0]!.timestamp)} – {formatUtc(candles.at(-1)!.timestamp)} · retrieved {candleRetrievedAt ? formatUtc(Date.parse(candleRetrievedAt)) : "time unavailable"}.</span>
+        </> : <>
+          <span>The chart area remains in place when fresh, validated Bitget candle history is unavailable.</span>
+          <span>One-sided rToken evidence only · no native-stock comparison or premium.</span>
+        </>}
+      </div>
     </Box>
   );
 }
 
-function Heatmap({ data, width, height }: { data: Point[]; width: number; height: number }) {
-  const columns = 24;
-  const rows = Math.max(1, Math.ceil(data.length / columns));
-  const cellWidth = width / columns;
-  const cellHeight = height / rows;
-  const max = Math.max(...data.map((point) => Math.abs(point.premium)), 1);
-
-  return (
-    <g>
-      {data.map((point, index) => {
-        const column = index % columns;
-        const row = Math.floor(index / columns);
-        const intensity = Math.min(Math.abs(point.premium) / max, 1);
-        return (
-          <rect
-            key={point.timestamp}
-            data-heat-cell
-            x={column * cellWidth}
-            y={row * cellHeight}
-            width={cellWidth + 0.5}
-            height={cellHeight + 0.5}
-            fill={point.premium >= 0 ? "var(--color-accent-positive)" : "var(--color-accent-negative)"}
-            opacity={0.16 + intensity * 0.7}
-          >
-            <title>{`${new Date(point.timestamp * 1000).toLocaleString()}: ${point.premium.toFixed(1)} bps`}</title>
-          </rect>
-        );
-      })}
-    </g>
-  );
+function formatUtc(timestamp: number): string {
+  return new Date(timestamp).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" });
 }
 
-function FlowDiagram({ width, height, premium }: { width: number; height: number; premium: number }) {
-  return (
-    <g>
-      <line x1={width / 2 - 120} x2={width / 2 + 120} y1={height / 2} y2={height / 2} stroke="var(--color-chart-axis)" strokeWidth="2" />
-      <circle cx={width / 2 - 120} cy={height / 2} r="52" fill="var(--color-accent-info-bg)" stroke="var(--color-accent-info)" strokeWidth="2" />
-      <circle cx={width / 2 + 120} cy={height / 2} r="52" fill="var(--color-accent-negative-bg)" stroke="var(--color-accent-negative)" strokeWidth="2" />
-      <text x={width / 2 - 120} y={height / 2 + 5} textAnchor="middle" fill="var(--color-fg-primary)" fontSize="12" fontFamily="var(--font-mono)">NATIVE</text>
-      <text x={width / 2 + 120} y={height / 2 + 5} textAnchor="middle" fill="var(--color-fg-primary)" fontSize="12" fontFamily="var(--font-mono)">rTOKEN</text>
-      <text x={width / 2} y={height / 2 - 24} textAnchor="middle" fill="var(--color-fg-secondary)" fontSize="13">
-        {premium >= 0 ? "Mint pressure: rToken premium" : "Redeem pressure: rToken discount"}
-      </text>
-    </g>
-  );
-}
-
-function FundingSurface({ data, width, height }: { data: Point[]; width: number; height: number }) {
-  const values = data.filter((_, index) => index % 8 === 0).map((point) => Math.sin(point.timestamp / 100000) * 0.00008);
-  const max = Math.max(Math.abs(values[0] ?? 0.01), 0.01);
-  return (
-    <g>
-      {values.map((value, index) => {
-        const barHeight = Math.max(8, (Math.abs(value) / max) * (height * 0.36));
-        return <rect key={index} x={index * (width / Math.max(values.length, 1)) + 3} y={height / 2 - barHeight / 2} width={Math.max(3, width / Math.max(values.length, 1) - 6)} height={barHeight} fill={value >= 0 ? "var(--color-accent-negative)" : "var(--color-accent-positive)"} rx="2" />;
-      })}
-      <line x1="0" x2={width} y1={height / 2} y2={height / 2} stroke="var(--color-chart-axis)" />
-    </g>
-  );
+function formatPrice(price: number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 }).format(price);
 }

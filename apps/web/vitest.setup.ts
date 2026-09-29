@@ -26,40 +26,6 @@ vi.mock("gsap", () => ({
   },
 }));
 
-// Mock @react-three/fiber
-vi.mock("@react-three/fiber", () => ({
-  Canvas: ({ children }: { children: React.ReactNode }) => <div data-testid="canvas">{children}</div>,
-  useFrame: vi.fn(),
-  useThree: vi.fn(() => ({
-    camera: { position: { x: 0, y: 0, z: 50 } },
-    size: { width: 800, height: 600 },
-    gl: { setClearColor: vi.fn() },
-  })),
-  extend: vi.fn(),
-}));
-
-// Mock @react-three/drei
-vi.mock("@react-three/drei", () => ({
-  OrbitControls: ({ children }: { children: React.ReactNode }) => <div data-testid="orbit-controls">{children}</div>,
-  Html: ({ children }: { children: React.ReactNode }) => <div data-testid="html">{children}</div>,
-  Text: ({ children, ...props }: any) => <div data-testid="drei-text" {...props}>{children}</div>,
-  Lines: ({ positions, color, ...props }: any) => <div data-testid="lines" {...props} />,
-}));
-
-// Mock Three.js
-vi.mock("three", () => ({
-  Color: vi.fn(),
-  Group: vi.fn(() => ({ add: vi.fn(), remove: vi.fn() })),
-  Mesh: vi.fn(),
-  PlaneGeometry: vi.fn(),
-  SphereGeometry: vi.fn(),
-  BoxGeometry: vi.fn(),
-  CircleGeometry: vi.fn(),
-  CylinderGeometry: vi.fn(),
-  MeshBasicMaterial: vi.fn(),
-  DoubleSide: 2,
-}));
-
 // Cleanup after each test
 afterEach(() => {
   cleanup();

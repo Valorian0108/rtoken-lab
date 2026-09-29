@@ -9,64 +9,55 @@
    * ======================================================================== */
 
   /* Background layers */
-  --color-bg-base: oklch(0.12 0.01 240);
-  --color-bg-elevated: oklch(0.16 0.01 240);
-  --color-bg-hover: oklch(0.20 0.01 240);
-  --color-bg-active: oklch(0.24 0.01 240);
+  --color-bg-base: #f3f0e8;
+  --color-bg-elevated: #fbfaf6;
+  --color-bg-hover: #e9e5db;
+  --color-bg-active: #dfdacd;
 
   /* Foreground text */
-  --color-fg-primary: oklch(0.96 0.01 240);
-  --color-fg-secondary: oklch(0.72 0.01 240);
-  --color-fg-muted: oklch(0.52 0.01 240);
-  --color-fg-inverse: oklch(0.12 0.01 240);
+  --color-fg-primary: #202522;
+  --color-fg-secondary: #4c554f;
+  --color-fg-muted: #626b64;
+  --color-fg-inverse: #fbfaf6;
 
   /* Accent colors (semantic) */
-  --color-accent-positive: oklch(0.62 0.18 142);
-  --color-accent-positive-bg: oklch(0.62 0.18 142 / 0.12);
-  --color-accent-positive-fg: oklch(0.62 0.18 142);
+  --color-accent-positive: #246b45;
+  --color-accent-positive-bg: #e2eee6;
+  --color-accent-positive-fg: #246b45;
 
-  --color-accent-warning: oklch(0.74 0.16 78);
-  --color-accent-warning-bg: oklch(0.74 0.16 78 / 0.12);
-  --color-accent-warning-fg: oklch(0.74 0.16 78);
+  --color-accent-warning: #8b5c19;
+  --color-accent-warning-bg: #f2ead9;
+  --color-accent-warning-fg: #755018;
 
-  --color-accent-negative: oklch(0.58 0.22 25);
-  --color-accent-negative-bg: oklch(0.58 0.22 25 / 0.12);
-  --color-accent-negative-fg: oklch(0.58 0.22 25);
+  --color-accent-negative: #b13b32;
+  --color-accent-negative-bg: #f4e5e1;
+  --color-accent-negative-fg: #a3342d;
 
-  --color-accent-info: oklch(0.58 0.15 240);
-  --color-accent-info-bg: oklch(0.58 0.15 240 / 0.12);
-  --color-accent-info-fg: oklch(0.58 0.15 240);
+  --color-accent-info: #704c64;
+  --color-accent-info-bg: #eee6eb;
+  --color-accent-info-fg: #704c64;
 
-  --color-accent-highlight: oklch(0.78 0.12 95);
+  --color-accent-highlight: #eee6eb;
 
   /* Borders & dividers */
-  --color-border-subtle: oklch(0.24 0.01 240 / 0.6);
-  --color-border-default: oklch(0.28 0.01 240 / 0.8);
-  --color-border-strong: oklch(0.36 0.01 240);
-  --color-border-focus: oklch(0.62 0.18 142);
+  --color-border-subtle: #dedbd1;
+  --color-border-default: #c9c7bd;
+  --color-border-strong: #8f978e;
+  --color-border-focus: #704c64;
 
   /* Chart specific */
-  --color-chart-grid: oklch(0.24 0.01 240 / 0.4);
-  --color-chart-axis: oklch(0.52 0.01 240);
-  --color-chart-crosshair: oklch(0.74 0.16 78 / 0.6);
-  --color-chart-tooltip: oklch(0.16 0.01 240 / 0.95);
-  --color-chart-tooltip-border: oklch(0.28 0.01 240 / 0.8);
-
-  /* Heatmap gradient stops */
-  --color-heatmap-deep-negative: oklch(0.45 0.20 25);
-  --color-heatmap-negative: oklch(0.55 0.18 25);
-  --color-heatmap-slight-negative: oklch(0.65 0.12 25);
-  --color-heatmap-neutral: oklch(0.28 0.01 240);
-  --color-heatmap-slight-positive: oklch(0.55 0.15 142);
-  --color-heatmap-positive: oklch(0.62 0.18 142);
-  --color-heatmap-deep-positive: oklch(0.70 0.20 142);
+  --color-chart-grid: #dddcd4;
+  --color-chart-axis: #737c75;
+  --color-chart-crosshair: #704c64;
+  --color-chart-tooltip: #fbfaf6;
+  --color-chart-tooltip-border: #c9c7bd;
 
   /* Series colors */
-  --color-series-native: oklch(0.58 0.15 240);
-  --color-series-rtoken-spot: oklch(0.58 0.22 25);
-  --color-series-rtoken-perp: oklch(0.74 0.16 78);
-  --color-series-premium: oklch(0.62 0.18 142);
-  --color-series-funding: oklch(0.68 0.14 300);
+  --color-series-native: #704c64;
+  --color-series-rtoken-spot: #27332d;
+  --color-series-rtoken-perp: #655a48;
+  --color-series-premium: #246b45;
+  --color-series-funding: #70539c;
 
   /* ========================================================================
    * SPACING (4pt base)
@@ -88,9 +79,9 @@
   /* ========================================================================
    * TYPOGRAPHY
    * ======================================================================== */
-  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: "Space Grotesk", "Inter", sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
+  --font-sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Literata", Georgia, serif;
 
   --text-xs: 0.7rem;
   --text-sm: 0.8125rem;
@@ -130,12 +121,12 @@
    * SHADOWS / DEPTH
    * ======================================================================== */
   --shadow-none: none;
-  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-default: 0 4px 8px oklch(0 0 0 / 0.4);
-  --shadow-md: 0 8px 16px oklch(0 0 0 / 0.45);
-  --shadow-lg: 0 16px 32px oklch(0 0 0 / 0.5);
-  --shadow-inset: inset 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-focus: 0 0 0 2px oklch(0.62 0.18 142);
+  --shadow-sm: 0 1px 2px rgb(32 37 34 / 0.08);
+  --shadow-default: 0 4px 12px rgb(32 37 34 / 0.1);
+  --shadow-md: 0 10px 24px rgb(32 37 34 / 0.12);
+  --shadow-lg: 0 18px 40px rgb(32 37 34 / 0.14);
+  --shadow-inset: inset 0 1px 2px rgb(32 37 34 / 0.08);
+  --shadow-focus: 0 0 0 2px rgb(23 70 200 / 0.24);
 
   /* ========================================================================
    * MOTION / ANIMATION

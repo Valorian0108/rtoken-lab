@@ -1,19 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-const QWEN_BASE_URL = process.env.BITGET_QWEN_BASE_URL ?? process.env.QWEN_BASE_URL ?? "https://hackathon.bitgetops.com/v1";
-const QWEN_MODEL = process.env.BITGET_QWEN_MODEL ?? process.env.QWEN_MODEL ?? "qwen3.8-max";
+const EXPERIENTIAL_BASE_URL = process.env.EXPLABS_BASE_URL ?? "https://api.experientiallabs.ai/v1";
+const EXPERIENTIAL_MODEL = "mimo-v2.6-pro";
 
-interface QwenConfig {
+interface ExperientialConfig {
   apiKey?: string;
   baseUrl?: string;
-  model?: string;
 }
 
-/** Server-only Qwen proxy. The API key is never returned to the browser. */
-export function createQwenHandler(config: QwenConfig = {}) {
-  const baseUrl = config.baseUrl ?? QWEN_BASE_URL;
-  const model = config.model ?? QWEN_MODEL;
-  const apiKey = config.apiKey ?? process.env.BITGET_QWEN_API_KEY ?? process.env.QWEN_API_KEY;
+/** Server-side Experiential Labs fallback. The gateway key never enters the browser. */
+export function createExperientialHandler(config: ExperientialConfig = {}) {
+  const baseUrl = config.baseUrl ?? EXPERIENTIAL_BASE_URL;
+  const apiKey = config.apiKey ?? process.env.EXPLABS_API_KEY;
 
   return async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== "POST") {
@@ -26,7 +24,7 @@ export function createQwenHandler(config: QwenConfig = {}) {
   if (!apiKey) {
     res.statusCode = 503;
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ error: "Qwen is not configured on the server." }));
+    res.end(JSON.stringify({ error: "Experiential Labs fallback is not configured on the server." }));
     return;
   }
 
@@ -40,13 +38,29 @@ export function createQwenHandler(config: QwenConfig = {}) {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const body = chunks.length > 0 ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
-    const upstream = await fetch(`${baseUrl.replace(/\/$/, "")}/responses`, {
+    const messages = Array.isArray(body.input)
+      ? body.input
+          .filter((item: { role?: unknown; content?: unknown }) =>
+            (item.role === "system" || item.role === "user" || item.role === "assistant") && typeof item.content === "string",
+          )
+          .map((item: { role: string; content: string }) => ({ role: item.role, content: item.content }))
+      : [];
+    if (messages.length === 0) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "A research prompt is required." }));
+      return;
+    }
+
+    // Use a minimal Chat Completions request; omit sampling and token-limit
+    // parameters for compatibility across Experiential Labs model deployments.
+    const upstream = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ ...body, model: body.model ?? model, stream: true }),
+      body: JSON.stringify({ model: EXPERIENTIAL_MODEL, messages, stream: true }),
       signal: controller.signal,
     });
 
@@ -81,11 +95,11 @@ export function createQwenHandler(config: QwenConfig = {}) {
     if (controller.signal.aborted) return;
     res.statusCode = 502;
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ error: error instanceof Error ? error.message : "Qwen request failed" }));
+    res.end(JSON.stringify({ error: error instanceof Error ? error.message : "Experiential Labs request failed" }));
   } finally {
     res.off("close", abortOnDisconnect);
   }
   };
 }
 
-export default createQwenHandler();
+export default createExperientialHandler();

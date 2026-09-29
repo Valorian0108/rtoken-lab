@@ -4,7 +4,6 @@ import type {
   PremiumBps,
   Symbol,
   Timestamp,
-  SourceMetadata,
   NormalizedQuote,
   NormalizedKline,
   NormalizedPremium,
@@ -58,7 +57,7 @@ export function buildPremiumData(
 }
 
 /**
- * Calculate premium time series from aligned klines
+ * Calculate price-gap series from timestamp-aligned klines.
  */
 export function calculatePremiumSeries(
   nativeKlines: NormalizedKline[],
@@ -67,8 +66,9 @@ export function calculatePremiumSeries(
   const nativeMap = new Map(nativeKlines.map(k => [k.timestamp, k]));
   const rTokenMap = new Map(rTokenKlines.map(k => [k.timestamp, k]));
 
-  const allTimestamps = new Set([...nativeMap.keys(), ...rTokenMap.keys()]);
-  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
+  const sortedTimestamps = [...nativeMap.keys()]
+    .filter(timestamp => rTokenMap.has(timestamp))
+    .sort((a, b) => a - b);
 
   return sortedTimestamps
     .map(ts => {
