@@ -7,6 +7,8 @@ import type { RTokenSnapshot } from "../rtoken-snapshot";
 import type { RTokenCandle, RTokenCandleRange } from "../rtoken-candles";
 import { formatRTokenCandleEvidence } from "../rtoken-candle-analysis";
 import type { RTokenStockClose } from "../rtoken-stock-close";
+import { fetchRTokenStockClose } from "../rtoken-stock-close";
+import { extractRequestedStockPriceSymbol } from "../requested-stock-price";
 
 interface ResearchPanelProps {
   titleId: string;
@@ -78,6 +80,8 @@ export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles
     const controller = new AbortController();
     requestControllerRef.current = controller;
 
+    const requestedStockSymbol = extractRequestedStockPriceSymbol(question);
+
     const sources = [
       ...(rTokenSnapshot ? [{
           endpoint: `Bitget public Spot ticker · ${rTokenSnapshot.symbol}`,
@@ -110,6 +114,27 @@ export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles
 
     const candleEvidence = candleStatus === "live" ? formatRTokenCandleEvidence(candles) : null;
     try {
+      if (requestedStockSymbol) {
+        const requestedStockClose = await fetchRTokenStockClose(requestedStockSymbol, controller.signal);
+        if (controller.signal.aborted) return;
+
+        const directAnswer = `The latest available ${requestedStockClose.symbol} stock reference is ${new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: "USD",
+        }).format(requestedStockClose.close)}, the daily close for ${requestedStockClose.date}. It is not a live quote. This stock-ticker reference does not establish the underlying, backing, redemption rights, or value of the selected rToken.`;
+        addMessage(createResearchAnswer(directAnswer, [{
+          endpoint: `EODHD daily close · ${requestedStockClose.symbol}`,
+          timestamp: requestedStockClose.retrievedAt,
+          data: {
+            close: requestedStockClose.close,
+            currency: "USD",
+            date: requestedStockClose.date,
+            retrievedAt: requestedStockClose.retrievedAt,
+          },
+        }]));
+        return;
+      }
+
       const context = [
         rTokenSnapshot
             ? `DATA STATUS: A fresh, observed Bitget ${rTokenSnapshot.symbol} spot ticker is supplied below as an rToken market snapshot. Any stock close supplied separately is daily and not time-aligned.`
@@ -155,7 +180,14 @@ export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles
         return;
       }
       console.warn("AI research explanation unavailable; returning an evidence-only summary.", error);
-      addMessage(createResearchAnswer(buildEvidenceFallback(rTokenSnapshot, snapshotStatus, symbol, candleEvidence), sources));
+      if (requestedStockSymbol) {
+        addMessage(createResearchAnswer(
+          `I couldn't retrieve a dated daily stock close for ${requestedStockSymbol}, so I can't report its price. No live stock quote is available here. The selected rToken market is separate and is not a substitute for ${requestedStockSymbol}.`,
+          [],
+        ));
+      } else {
+        addMessage(createResearchAnswer(buildEvidenceFallback(rTokenSnapshot, snapshotStatus, symbol, candleEvidence), sources));
+      }
     } finally {
       if (requestControllerRef.current === controller) requestControllerRef.current = null;
       setIsLoading(false);
