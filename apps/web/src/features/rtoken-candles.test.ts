@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRTokenCandles, selectRTokenCandleRange } from "./rtoken-candles";
+import { isRTokenCandleHistoryStale, parseRTokenCandles, selectRTokenCandleRange } from "./rtoken-candles";
 
 const hour = 60 * 60_000;
 
@@ -20,10 +20,15 @@ describe("parseRTokenCandles", () => {
     ]);
   });
 
-  it("rejects invalid payloads, malformed candles, and stale history", () => {
+  it("rejects invalid payloads and malformed candles", () => {
     expect(() => parseRTokenCandles({ code: "500", data: [] })).toThrow();
     expect(() => parseRTokenCandles({ code: "00000", data: [[hour, 10, 9, 8, 11, 1, 10], [2 * hour, 10, 11, 9, 10, 1, 10]] }, 3 * hour)).toThrow("fewer than two");
-    expect(() => parseRTokenCandles({ code: "00000", data: [[hour, 10, 11, 9, 10, 1, 10], [2 * hour, 10, 11, 9, 10, 1, 10]] }, 5 * hour)).toThrow("stale");
+  });
+
+  it("keeps valid old candles for historical display", () => {
+    const history = parseRTokenCandles({ code: "00000", data: [[hour, 10, 11, 9, 10, 1, 10], [2 * hour, 10, 11, 9, 10, 1, 10]] }, 5 * hour);
+    expect(history).toHaveLength(2);
+    expect(isRTokenCandleHistoryStale(history, 5 * hour)).toBe(true);
   });
 
   it("rejects candles significantly ahead of retrieval time", () => {
@@ -31,6 +36,15 @@ describe("parseRTokenCandles", () => {
       code: "00000",
       data: [[hour, 10, 11, 9, 10, 1, 10], [2 * hour + 6 * 60_000, 10, 11, 9, 10, 1, 10]],
     }, 2 * hour)).toThrow("fewer than two");
+  });
+});
+
+describe("isRTokenCandleHistoryStale", () => {
+  it("marks history stale beyond two hours", () => {
+    const candles = [{ timestamp: hour, open: 10, high: 10, low: 10, close: 10, baseVolume: 1, quoteVolume: 10 }];
+    expect(isRTokenCandleHistoryStale(candles, hour + 2 * hour)).toBe(false);
+    expect(isRTokenCandleHistoryStale(candles, hour + 2 * hour + 1)).toBe(true);
+    expect(isRTokenCandleHistoryStale([], hour)).toBe(true);
   });
 });
 

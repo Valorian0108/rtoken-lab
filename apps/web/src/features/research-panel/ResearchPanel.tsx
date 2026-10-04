@@ -16,6 +16,7 @@ interface ResearchPanelProps {
   snapshotStatus: "loading" | "live" | "unavailable";
   candles: RTokenCandle[];
   candleStatus: "loading" | "live" | "unavailable";
+  candleHistoryStale: boolean;
   candleRetrievedAt: string | null;
   symbol: string;
   candleRange: RTokenCandleRange;
@@ -32,7 +33,7 @@ const SUGGESTED_QUESTIONS = [
   "How does the daily stock close differ in timing from the Bitget quote?",
 ];
 
-export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles, candleStatus, candleRetrievedAt, symbol, candleRange, stockClose, stockCloseStatus, stockCloseError }: ResearchPanelProps) {
+export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles, candleStatus, candleHistoryStale, candleRetrievedAt, symbol, candleRange, stockClose, stockCloseStatus, stockCloseError }: ResearchPanelProps) {
   const [messages, setMessages] = useState<ResearchMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -140,7 +141,7 @@ export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles
             ? `DATA STATUS: A fresh, observed Bitget ${rTokenSnapshot.symbol} spot ticker is supplied below as an rToken market snapshot. Any stock close supplied separately is daily and not time-aligned.`
             : `DATA STATUS: ${snapshotStatus === "loading" ? `The Bitget ${symbol} spot ticker is being checked.` : `No fresh ${symbol} ticker is available.`} Do not reuse stale values or invent prices.`,
         candleEvidence
-          ? `The chart and this answer use the same validated Bitget rToken-only hourly close series for the selected ${candleRange} view, retrieved at ${candleRetrievedAt}. Do not infer market causes, fair value, premium/discount, or a trading signal. Cite specific measured changes and UTC times when relevant.\n${candleEvidence}`
+          ? `The chart and this answer use the same validated Bitget rToken-only hourly close series for the selected ${candleRange} view, retrieved at ${candleRetrievedAt}.${candleHistoryStale ? " The series is delayed; its latest candle timestamp is historical and must not be described as current." : ""} Do not infer market causes, fair value, premium/discount, or a trading signal. Cite specific measured changes and UTC times when relevant.\n${candleEvidence}`
           : `Hourly chart evidence is ${candleStatus === "loading" ? "still loading" : "unavailable"}; no candle values are supplied. Do not infer anything from an unseen chart.`,
         stockClose
           ? `An independent EODHD daily ${stockClose.symbol} stock-ticker close is also supplied: ${stockClose.close} USD for trading date ${stockClose.date}, retrieved ${stockClose.retrievedAt}. It is only matched by the ticker name; this does not establish the rToken's underlying, backing, or redemption rights. It is not live, may be from the prior US trading session, is USD versus the Bitget USDT quote, and is not time-aligned. Do not calculate or describe a premium, discount, fair value, tracking, or synchronized comparison from it; no FX conversion is supplied.`

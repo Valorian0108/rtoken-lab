@@ -8,7 +8,7 @@ import { ResearchPanel } from "./features/research-panel/ResearchPanel";
 import { MechanicsCanvas } from "./features/mechanics-canvas/MechanicsCanvas";
 import { fetchRTokenSnapshot, RTOKEN_SNAPSHOT_MAX_AGE_MS } from "./features/rtoken-snapshot";
 import type { RTokenSnapshot } from "./features/rtoken-snapshot";
-import { fetchRTokenCandles, selectRTokenCandleRange } from "./features/rtoken-candles";
+import { fetchRTokenCandles, isRTokenCandleHistoryStale, selectRTokenCandleRange } from "./features/rtoken-candles";
 import type { RTokenCandle, RTokenCandleHistory, RTokenCandleRange } from "./features/rtoken-candles";
 import { fetchRTokenStockClose } from "./features/rtoken-stock-close";
 import type { RTokenStockClose } from "./features/rtoken-stock-close";
@@ -159,6 +159,7 @@ function AppInner() {
   const candles: RTokenCandle[] = currentCandleState.history?.candles ?? [];
   const candleHistory: RTokenCandleHistory | null = currentCandleState.history ?? null;
   const visibleCandles = selectRTokenCandleRange(candles, candleRange);
+  const candleHistoryStale = currentCandleState.status === "live" && isRTokenCandleHistoryStale(candles);
   const currentStockClose = stockCloseState?.symbol === stockSymbol ? stockCloseState : null;
 
   const transitionView = useCallback((nextView: boolean) => {
@@ -217,6 +218,7 @@ function AppInner() {
                 snapshotStatus={snapshotStatus}
                 candles={visibleCandles}
                 candleStatus={currentCandleState.status}
+                candleHistoryStale={candleHistoryStale}
                 candleRetrievedAt={candleHistory?.retrievedAt ?? null}
                 symbol={selectedMarket.baseCoin.replace(/^r/, "")}
                 candleRange={candleRange}
@@ -233,6 +235,7 @@ function AppInner() {
                   snapshotStatus={snapshotStatus}
                   candles={visibleCandles}
                   candleStatus={currentCandleState.status}
+                  candleHistoryStale={candleHistoryStale}
                   candleRetrievedAt={candleHistory?.retrievedAt ?? null}
                   candleError={currentCandleState.error ?? null}
                   candleRange={candleRange}

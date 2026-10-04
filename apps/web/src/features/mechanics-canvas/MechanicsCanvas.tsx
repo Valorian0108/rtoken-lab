@@ -11,6 +11,7 @@ interface MechanicsCanvasProps {
   snapshotStatus: "loading" | "live" | "unavailable";
   candles: RTokenCandle[];
   candleStatus: "loading" | "live" | "unavailable";
+  candleHistoryStale: boolean;
   candleRetrievedAt: string | null;
   candleError: string | null;
   candleRange: RTokenCandleRange;
@@ -37,6 +38,7 @@ export function MechanicsCanvas({
   snapshotStatus,
   candles,
   candleStatus,
+  candleHistoryStale,
   candleRetrievedAt,
   candleError,
   candleRange,
@@ -193,7 +195,7 @@ export function MechanicsCanvas({
             >{range}</button>)}
           </div>
           <span className={`history-state history-state--${currentCandleStatus === "live" ? "loaded" : currentCandleStatus === "loading" ? "disabled" : "unavailable"}`} role="status">
-            {currentCandleStatus === "live" ? `BITGET · ${candleRange} HOURLY VIEW` : currentCandleStatus === "loading" ? "LOADING BITGET HISTORY" : "HISTORY UNAVAILABLE"}
+            {currentCandleStatus === "live" ? candleHistoryStale ? "DELAYED BITGET HISTORY" : `BITGET · ${candleRange} HOURLY VIEW` : currentCandleStatus === "loading" ? "LOADING BITGET HISTORY" : "HISTORY UNAVAILABLE"}
           </span>
         </div>
       </Box>
@@ -255,11 +257,12 @@ export function MechanicsCanvas({
           <div className={`history-empty history-empty--${currentCandleStatus}`} role="status">
             <span className="history-empty__badge">{currentCandleStatus === "loading" ? "[ FETCHING // BITGET HOURLY CANDLES ]" : "[ DATA_UNAVAILABLE // NO_HOURLY_CANDLES ]"}</span>
             <strong>{currentCandleStatus === "loading" ? "Loading verified hourly candles" : "Hourly rToken history is unavailable"}</strong>
-            <span>{currentCandleStatus === "loading" ? `Checking up to 1,000 hourly candles for R${symbol}USDT, then showing those inside the selected time window.` : candleError ?? "A fresh, valid candle series could not be confirmed, so no price line is drawn."}</span>
+            <span>{currentCandleStatus === "loading" ? `Checking up to 1,000 hourly candles for R${symbol}USDT, then showing those inside the selected time window.` : candleError ?? "A valid candle series could not be confirmed, so no price line is drawn."}</span>
             <span>Source: Bitget Reality spot candles. No native-stock series or premium is shown.</span>
           </div>
         ) : (
           <>
+          {candleHistoryStale && <p role="status">Delayed history: the newest hourly candle is {formatUtc(candles.at(-1)!.timestamp)}. It is shown as historical data and is not a current price.</p>}
           <svg
             ref={svgRef}
             className="mechanics-svg"
@@ -303,7 +306,7 @@ export function MechanicsCanvas({
       </div>
       <div className="chart-footnote">
         {hasLiveHistory ? <>
-          <span>Bitget public SPOT hourly candles · close prices in USDT · no native-stock series.</span>
+          <span>Bitget public SPOT hourly candles · close prices in USDT · no native-stock series.{candleHistoryStale ? " Delayed history, not a current price." : ""}</span>
           <span>Observed {formatUtc(candles[0]!.timestamp)} – {formatUtc(candles.at(-1)!.timestamp)} · retrieved {candleRetrievedAt ? formatUtc(Date.parse(candleRetrievedAt)) : "time unavailable"}.</span>
         </> : <>
           <span>The chart area remains in place when fresh, validated Bitget candle history is unavailable.</span>

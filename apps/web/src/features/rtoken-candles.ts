@@ -17,6 +17,13 @@ export interface RTokenCandleHistory {
 export type RTokenCandleRange = "1D" | "1W" | "1M";
 
 const RANGE_HOURS: Record<RTokenCandleRange, number> = { "1D": 24, "1W": 168, "1M": 720 };
+export const RTOKEN_CANDLE_FRESHNESS_MS = 2 * 60 * 60_000;
+
+/** Candles can remain useful as history even when the most recent observation is old. */
+export function isRTokenCandleHistoryStale(candles: RTokenCandle[], now = Date.now()): boolean {
+  const latest = candles.reduce((timestamp, candle) => Math.max(timestamp, candle.timestamp), 0);
+  return latest === 0 || now - latest > RTOKEN_CANDLE_FRESHNESS_MS;
+}
 
 /** Select observed hourly candles inside the requested time window ending at the latest returned candle. */
 export function selectRTokenCandleRange(candles: RTokenCandle[], range: RTokenCandleRange): RTokenCandle[] {
@@ -58,8 +65,6 @@ export function parseRTokenCandles(payload: unknown, now = Date.now()): RTokenCa
 
   const candles = [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
   if (candles.length < 2) throw new Error("Bitget returned fewer than two valid hourly candles.");
-  const latest = candles[candles.length - 1]!;
-  if (now - latest.timestamp > 2 * 60 * 60_000) throw new Error("The latest Bitget hourly candle is stale; no chart is shown.");
   return candles;
 }
 
