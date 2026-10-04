@@ -9,6 +9,7 @@ import { formatRTokenCandleEvidence } from "../rtoken-candle-analysis";
 import type { RTokenStockClose } from "../rtoken-stock-close";
 import { fetchRTokenStockClose } from "../rtoken-stock-close";
 import { extractRequestedStockPriceSymbol } from "../requested-stock-price";
+import { MessageMarkIcon, SearchIcon, SendIcon } from "../../components/Icons";
 
 interface ResearchPanelProps {
   titleId: string;
@@ -230,10 +231,7 @@ export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles
       >
         <Box flex alignItems="center" justifyContent="space-between" gap={2}>
           <Box flex alignItems="center" gap={2}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" />
-              <path d="M21 21l-4.35-4.35" />
-            </svg>
+            <SearchIcon className="ui-icon research-panel__search-icon" />
           <Text id={titleId} variant="heading-sm" weight="semibold">Research desk</Text>
           </Box>
           <Tooltip content={`Showing Bitget ${rTokenSnapshot?.symbol ?? `${symbol}USDT`} spot market`} position="top">
@@ -286,7 +284,7 @@ export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles
             }}
           >
             <span className={`research-message__mark research-message__mark--${msg.type}`} aria-hidden="true">
-              {msg.type === "question" ? "?" : msg.type === "answer" ? "✓" : "!"}
+              <MessageMarkIcon type={msg.type} className="ui-icon research-panel__message-icon" />
             </span>
             <Box style={{ flex: 1, minWidth: 0 }}>
               <Box flex alignItems="center" gap={2} style={{ marginBottom: "var(--space-1)" }}>
@@ -421,10 +419,7 @@ export function ResearchPanel({ titleId, rTokenSnapshot, snapshotStatus, candles
               {isLoading ? (
                 <span>Cancel</span>
               ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
+                <SendIcon className="ui-icon research-panel__send-icon" />
               )}
             </Button>
           </Box>

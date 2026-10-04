@@ -64,7 +64,7 @@ export async function askQwenResearch(input: QwenResearchInput, options: QwenRes
       },
     ],
     temperature: 0.2,
-    max_output_tokens: 1600,
+    max_output_tokens: 900,
     stream: true,
   });
 

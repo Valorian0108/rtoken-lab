@@ -10,7 +10,7 @@
 - **Source:** [github.com/Valorian0108/rtoken-lab](https://github.com/Valorian0108/rtoken-lab)
 - **Hackathon handbook:** [Bitget Builder Base Camp Hackathon S2](https://bitget-ai.gitbook.io/bitgetai_hackathons2/)
 
-The S2 brief requires submission materials to be accessible without login. **The source repository is currently private**, so that link is not judge-accessible unless its visibility is changed. The deployed demo is the accessible deliverable; make the repository public before listing it as accessible submission material.
+The S2 brief requires submission materials to be accessible without login. The source repository currently renders as **Public** on GitHub, and the deployed demo is linked above. Recheck both links in a signed-out browser before submission; optional recordings or screenshots should also be publicly accessible.
 
 ## Project description
 
@@ -34,7 +34,7 @@ No user study, adoption, task-completion, retention, or trading-performance metr
 
 **Implemented:** responsive landing page and research workbench; searchable Bitget Reality spot instruments; server-side public ticker and hourly-candle routes; separate daily stock-close lookup; natural-language research through the server-side Qwen endpoint with optional Experiential Labs fallback; explicit stock-ticker price lookup; evidence/status messaging; and regression tests for research rendering and ticker extraction.
 
-**Boundaries and remaining validation:** the assistant does not trade or give buy/sell instructions. rToken candles describe only the selected rToken market. Stock closes are daily, in USD, and not time-aligned to Bitget's USDT quote. The quality and licensing/availability of external data should be confirmed for the intended public deployment. No user study or trading strategy/backtest is claimed.
+**Boundaries and remaining validation:** the assistant does not trade or give buy/sell instructions. rToken candles describe only the selected rToken market. Stock closes are daily, in USD, and not time-aligned to Bitget's USDT quote. On October 4 the deployed chart was blank because its two-hour freshness cutoff hid an otherwise valid Bitget hourly series whose latest RAAPL candle was several hours old. The app now retains valid older candles as history and labels them delayed, including their latest candle time; verify the deployed demo after the latest commits finish deploying. A test research question initially remained in the provider-request stage during a brief check and was cancelled; a later deployed research question returned a complete answer. No user study or trading strategy/backtest is claimed.
 
 ### 5. Deliverables
 
@@ -81,7 +81,7 @@ The Google Form—not this README—requires the full project description. The b
 
 Track 3 requires an accessible demo that shows one complete research task from a question through to an actionable research insight. Here, “actionable” means a useful interpretation or next evidence to investigate—not an order or trading recommendation. The brief's judging focus includes data/Skill depth, research quality, natural-language interaction, and a clear personalized thesis.
 
-The local S2 handbook copy states a September 21, 2026 submission deadline. The project notes record a user-confirmed extension to **October 8, 2026 (UTC+8)**. Verify the current date and requirements in the official submission portal before submitting; the extension has not been independently verified here.
+The official Google Form currently states a deadline of **October 8, 2026 at 23:59 (UTC+8)**. It requires Google sign-in to save progress. The original handbook schedule lists September 27; Bitget AI announced the extension on X on September 24. Confirm the form is still accepting responses before submission.
 
 ## Run locally
 
@@ -134,6 +134,8 @@ In production, the Vercel serverless handlers in `apps/web/api` proxy Qwen and E
 ### Vercel deployment
 
 For this monorepo, configure Vercel with **Root Directory** `apps/web`, enable including files outside the root directory, and use the Vite preset. Use `pnpm install --frozen-lockfile` for install, `pnpm build` for build, and `dist` as output. Set Node.js to version 20 or newer. Add only the required server-side environment variables described above.
+
+The Vercel project currently has a **draft (not yet active) Firewall rate-limit rule** for `/api/qwen` and `/api/experiential`: 12 requests per IP per 60-second fixed window. The rule is staged in Vercel under `Limit rToken Lab research endpoints`. Review it, then publish with `vercel firewall publish --project rtoken-lab` (or discard with `vercel firewall discard --project rtoken-lab`). Verify the published rule on a preview deployment and review Firewall logs. The handlers also have a best-effort in-memory throttle, but serverless instances do not share it; it is not a substitute for the Firewall rule. See [Vercel WAF rate limiting](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting).
 
 ## Responsible data use
 

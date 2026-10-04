@@ -413,6 +413,13 @@ body {
 .landing-entry__description { max-width: 48ch; margin: 24px 0 28px; color: var(--color-signal-wash); font: 500 clamp(0.9rem, 1.5vw, 1.05rem)/1.65 var(--font-sans); }
 .landing-entry__button { display: inline-flex; align-items: center; justify-content: center; gap: 24px; min-width: 246px; min-height: 56px; padding: 0 22px; border: 1px solid var(--color-bg-elevated); background: transparent; color: var(--color-bg-elevated); font: 600 0.78rem/1.2 var(--font-sans); cursor: pointer; transition: color 180ms ease, background 180ms ease; }
 .landing-entry__button:hover { background: var(--color-bg-elevated); color: var(--color-signal); }
+.ui-icon { display: inline-block; width: 1em; height: 1em; flex: 0 0 auto; vertical-align: middle; }
+.ui-icon--inline { width: 0.9em; height: 0.9em; margin-left: 0.12em; }
+.landing-entry__button-icon { width: 16px; height: 16px; }
+.research-panel__search-icon { width: 20px; height: 20px; color: var(--color-signal); }
+.research-panel__message-icon { width: 14px; height: 14px; }
+.research-panel__send-icon { width: 16px; height: 16px; }
+.app-workbench__return button { display: inline-flex; align-items: center; gap: 7px; }
 .landing-entry__button:focus-visible, .app-workbench__return button:focus-visible { outline: 2px solid var(--color-bg-elevated); outline-offset: 4px; }
 .landing-entry__progress { position: absolute; top: 50%; left: clamp(22px, 4.2vw, 82px); display: grid; justify-items: center; gap: clamp(32px, 5vh, 58px); transform: translateY(-50%); }
 .landing-entry__progress::before { position: absolute; top: 2px; bottom: 2px; left: 50%; width: 1px; background: rgb(255 255 255 / 34%); content: ""; }
@@ -598,7 +605,7 @@ body {
 .market-picker input { width: 100%; min-width: 0; padding: 0 22px 2px 0; border: 0; border-bottom: 1px solid transparent; border-radius: 0; outline: 0; background: transparent; color: var(--color-fg-primary); font: 600 0.82rem/1.3 var(--font-mono); letter-spacing: -0.02em; }
 .market-picker input:focus { border-bottom-color: var(--color-signal); }
 .market-picker input::placeholder { color: var(--color-fg-muted); font-weight: 400; }
-.market-picker__chevron { position: absolute; right: 1px; top: 1px; color: var(--color-signal); font: 600 0.9rem/1 var(--font-sans); pointer-events: none; }
+.market-picker__chevron { position: absolute; right: 10px; top: 50%; width: 16px; height: 16px; color: var(--color-signal); pointer-events: none; transform: translateY(-50%); }
 .market-picker__menu { position: absolute; z-index: 100; top: calc(100% + 10px); left: -12px; width: min(330px, 80vw); max-height: min(390px, 65vh); overflow-y: auto; border: 1px solid var(--color-border-default); background: var(--color-bg-elevated); box-shadow: var(--shadow-md); }
 .market-picker__menu [role="option"] { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 12px; border-bottom: 1px solid var(--color-border-subtle); background: transparent; color: var(--color-fg-primary); text-align: left; cursor: pointer; }
 .market-picker__menu [role="option"]:hover, .market-picker__menu [role="option"].is-active, .market-picker__menu [role="option"][aria-selected="true"] { background: var(--color-signal-wash); }
@@ -695,24 +702,6 @@ body {
 .ui-button:hover { box-shadow: none !important; }
 .ui-input, .ui-select, .ui-textarea { border-radius: 0; }
 
-@media (max-width: 1100px) and (min-width: 741px) {
-  .app-layout { grid-template-columns: minmax(0, 1fr) minmax(255px, 28vw); }
-  .app-header { gap: 14px; padding-inline: 18px; }
-  .app-header > div:nth-child(2) { max-width: 250px !important; min-width: 150px; }
-  .app-header > div:last-child { gap: 10px !important; }
-  .app-center-canvas { padding-inline: 18px; }
-  .app-research-panel > div:first-child { padding: 16px 16px 12px !important; }
-  .app-research-panel .research-brief { padding: 12px 16px 2px; }
-  .app-research-panel .research-messages { padding: 10px 16px !important; }
-  .app-research-panel .research-composer { padding: 10px 16px 14px !important; }
-  .research-empty-state { gap: 8px; padding-block: 12px; }
-  .research-empty-state p { font-size: 0.88rem; }
-  .app-header > div:nth-child(2) { flex: 0 1 250px !important; }
-  .quote-provenance__grid { grid-template-columns: 1fr; }
-  .quote-provenance__grid p { grid-column: 1; }
-  .chart-footnote { flex-direction: column; gap: 3px; padding-bottom: 15px; margin-bottom: 6px; }
-}
-
 /* Table-like controls, purposeful focus and instrument hover states. */
 .ui-button { position: relative; font-family: var(--font-sans); font-weight: 600; transition: color var(--duration-fast), background-color var(--duration-fast), border-color var(--duration-fast), translate var(--duration-fast); }
 .ui-button::after { display: none; }
@@ -727,19 +716,19 @@ body {
 .data-state__mark { width: 7px; height: 7px; border-radius: 0; rotate: 45deg; }
 .data-state--live .data-state__mark { box-shadow: 0 0 0 3px var(--color-accent-positive-bg); }
 
-@media (max-width: 740px) {
-  .app-workbench { height: auto; min-height: 100dvh; }
-  .app-workbench .app-layout { flex: 0 0 auto; height: auto; min-height: 100dvh; }
-  .app-layout { background: var(--color-bg-base); }
-  .app-header { background: var(--color-bg-elevated); }
-  .app-center-canvas { grid-template-rows: minmax(0, 1fr); }
-  .evidence-chart-frame { min-height: 320px; }
-  .mechanics-svg { min-height: 320px; }
-  .instrument-search { min-width: 0; }
-  .app-header__status { gap: 8px !important; }
-}
-
 @media (max-width: 1100px) and (min-width: 741px) {
+  .app-header { gap: 14px; padding-inline: 18px; }
+  .app-header > div:nth-child(2) { max-width: 250px !important; min-width: 150px; flex: 0 1 250px !important; }
+  .app-header > div:last-child { gap: 10px !important; }
+  .app-research-panel > div:first-child { padding: 16px 16px 12px !important; }
+  .app-research-panel .research-brief { padding: 12px 16px 2px; }
+  .app-research-panel .research-messages { padding: 10px 16px !important; }
+  .app-research-panel .research-composer { padding: 10px 16px 14px !important; }
+  .research-empty-state { gap: 8px; padding-block: 12px; }
+  .research-empty-state p { font-size: 0.88rem; }
+  .quote-provenance__grid { grid-template-columns: 1fr; }
+  .quote-provenance__grid p { grid-column: 1; }
+  .chart-footnote { flex-direction: column; gap: 3px; padding-bottom: 15px; margin-bottom: 6px; }
   .app-layout { grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 320px); grid-template-rows: 66px minmax(0, 1fr); }
   .app-header { grid-row: 1; }
   .app-center-canvas { grid-row: 2; min-height: 0; }
@@ -747,7 +736,8 @@ body {
   .app-center-canvas { padding-inline: 16px; }
   .mechanics-toolbar { align-items: start; flex-direction: column; gap: 8px; min-height: 88px; }
   .mechanics-toolbar__controls { width: 100%; justify-content: space-between; }
-  .history-state { max-width: 52%; }
+.history-state { max-width: 52%; }
+.history-delay-notice { margin: 0; padding: 8px 12px; border-left: 2px solid var(--color-accent-warning, #e6a84b); color: var(--color-fg-secondary); font-size: var(--text-xs); line-height: 1.5; }
   .quote-provenance--empty { font-size: 0.55rem; padding-block: 8px; }
   .quote-provenance__grid { grid-template-columns: 1fr; }
   .quote-provenance__grid p { grid-column: 1; }
@@ -761,38 +751,19 @@ body {
   .mechanics-toolbar { min-height: 68px; padding-block: 12px 8px; }
   .quote-provenance--empty { padding-block: 8px; }
   .chart-footnote { padding-block: 6px 8px; }
-}
-
-@media (max-width: 740px) {
-}
-
-@media (max-width: 380px) {
-}
-
-@media (max-width: 740px) {
-  .app-header {
-    min-height: 0;
-    padding: 12px 16px 14px;
-    gap: 10px 14px;
-  }
-  .app-header > div:first-child { flex: 1 1 auto; min-width: 0; }
-  .app-header > div:last-child { flex: 0 1 auto; margin-left: 0; }
-  .app-header > div:nth-child(2) {
-    order: 3;
-    flex: 1 0 100%;
-    min-width: 0;
-    max-width: none !important;
-  }
-  .header-market-label { min-width: 0; width: 100%; }
-  .market-picker { width: 100%; min-width: 0; }
-  .market-picker__menu { left: 0; width: min(100%, 420px); }
-}
-
-@media (max-width: 380px) {
-  .app-header { padding-inline: 12px; gap: 10px; }
-  .brand-wordmark { font-size: 1.15rem; }
-  .brand-wordmark__lab { margin-left: 6px; padding-left: 6px; }
-  .app-header__status .data-state { max-width: 126px; white-space: normal; line-height: 1.25; }
+  .app-layout { min-height: 0; grid-template-rows: 66px minmax(0, 1fr); }
+  .app-center-canvas { padding-bottom: 10px; grid-template-rows: minmax(520px, auto); overflow-y: auto; }
+  .mechanics-toolbar { min-height: 60px; padding-block: 10px 8px; }
+  .quote-provenance { padding-block: 7px; }
+  .chart-footnote { margin-bottom: 0; }
+  .app-research-panel > div:first-child { padding-block: 12px 10px !important; }
+  .app-research-panel .research-brief { padding-block: 9px 0; }
+  .research-brief p { margin-top: 4px; font-size: 0.72rem; }
+  .research-empty-state { margin-top: 0; padding-block: 10px; }
+  .app-research-panel .research-composer { padding-block: 9px 10px !important; }
+  .app-research-panel textarea { min-height: 100px !important; max-height: 120px !important; }
+  .app-center-canvas > .canvas-container { min-height: 520px; overflow: visible; }
+  .app-center-canvas > .canvas-container > .mechanics-surface { overflow: visible; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -802,25 +773,6 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* Keep the evidence and research panels readable on narrow tablets. */
-@media (min-width: 741px) and (max-width: 900px) {
-  .app-workbench { height: auto; min-height: 100dvh; }
-  .app-workbench .app-layout {
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-  }
-  .app-header { grid-column: 1; grid-row: 1; min-height: 78px; }
-  .app-center-canvas { grid-column: 1; grid-row: 2; min-height: 0; padding: 0 clamp(20px, 4vw, 36px) 24px; overflow: visible; }
-  .app-center-canvas > .canvas-container { min-height: 0; overflow: visible; }
-  .app-research-panel { grid-column: 1; grid-row: 3; min-height: 580px; height: min(74vh, 760px); border-top: 1px solid var(--color-border-subtle); border-left: 0; }
-  .app-research-panel > div:first-child, .app-research-panel .research-brief { padding-inline: clamp(20px, 4vw, 36px) !important; }
-  .app-research-panel .research-messages { padding-inline: clamp(20px, 4vw, 36px) !important; }
-  .app-research-panel .research-composer { padding-inline: clamp(20px, 4vw, 36px) !important; }
 }
 
 @media (max-width: 860px) and (min-width: 741px) {
@@ -850,55 +802,11 @@ body {
   .chart-footnote { flex-direction: column; gap: 3px; }
 }
 
-@media (min-width: 741px) and (max-height: 740px) {
-  .app-layout { min-height: 0; grid-template-rows: 66px minmax(0, 1fr); }
-  .app-center-canvas { padding-bottom: 10px; grid-template-rows: minmax(520px, auto); overflow-y: auto; }
-  .mechanics-toolbar { min-height: 60px; padding-block: 10px 8px; }
-  .quote-provenance { padding-block: 7px; }
-  .quote-provenance--empty { padding-block: 8px; }
-  .chart-footnote { padding-block: 6px 8px; margin-bottom: 0; }
-  .app-research-panel > div:first-child { padding-block: 12px 10px !important; }
-  .app-research-panel .research-brief { padding-block: 9px 0; }
-  .research-brief p { margin-top: 4px; font-size: 0.72rem; }
-  .research-empty-state { margin-top: 0; padding-block: 10px; }
-  .app-research-panel .research-composer { padding-block: 9px 10px !important; }
-  .app-research-panel textarea { min-height: 100px !important; max-height: 120px !important; }
-  .app-center-canvas > .canvas-container { min-height: 520px; overflow: visible; }
-  .app-center-canvas > .canvas-container > .mechanics-surface { overflow: visible; }
-}
-
-@media (max-width: 1100px) and (min-width: 741px) {
-}
+/* Consolidated mobile layout; these declarations also cover the old tablet-mobile cascade. */
 @media (max-width: 740px) {
   body { overflow: auto; }
-  .app-layout {
-    width: 100%; min-width: 0; height: auto; min-height: 100dvh; overflow: visible;
-    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto;
-  }
-  .app-header { grid-column: 1; grid-row: 1; min-height: 72px; padding: 12px 16px; flex-wrap: wrap; gap: 12px; }
-  .brand-wordmark { font-size: 1.3rem; }
-  .brand-descriptor { font-size: 0.5rem; letter-spacing: 0.08em; }
-  .app-header > div:nth-child(2) { order: 3; flex: 1 0 100%; max-width: none !important; }
-  .market-picker { width: 100%; }
-  .market-picker__menu { left: 0; width: min(100%, 420px); }
-  .app-header > div:last-child { margin-left: auto; }
-  .app-center-canvas { grid-column: 1; grid-row: 2; padding: 0 16px 20px; grid-template-rows: minmax(270px, auto); overflow: visible; }
-  .app-research-panel { grid-column: 1; grid-row: 3; min-height: 520px; border-top: 1px solid var(--color-border-subtle); border-left: 0; }
-  .mechanics-toolbar { align-items: start; flex-direction: column; gap: 10px; }
-  .mechanics-toolbar__controls { width: 100%; justify-content: space-between; gap: 8px; }
-  .history-state { max-width: 58%; }
-  .chart-footnote { flex-direction: column; gap: 3px; }
-  .mechanics-svg { min-height: 250px; }
-}
-
-@media (max-width: 740px) {
-  .app-layout { --rail-width: 100%; }
-  .app-research-panel { height: min(78vh, 720px); }
-}
-@media (max-width: 380px) {
-  .data-state { font-size: 0.54rem; }
-}
-@media (max-width: 740px) {
+  .app-workbench { height: auto; min-height: 100dvh; }
+  .app-workbench .app-layout,
   .app-layout {
     width: 100%;
     min-width: 0;
@@ -906,54 +814,84 @@ body {
     min-height: 100dvh;
     overflow: visible;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto minmax(300px, auto) minmax(520px, auto);
+    background: var(--color-bg-base);
+    --rail-width: 100%;
   }
   .app-header {
     grid-column: 1;
     grid-row: 1;
-    min-height: 0;
+    min-height: 112px;
     padding: 12px 16px 14px;
     flex-wrap: wrap;
     gap: 10px 14px;
+    background: var(--color-bg-elevated);
   }
   .app-header > div:first-child { flex: 1 1 auto; min-width: 0; }
-  .app-header > div:last-child { flex: 0 1 auto; margin-left: 0; }
+  .app-header > div:last-child { flex: 0 1 auto; min-width: 0; margin-left: 0; }
+  .app-header__brand { min-width: 0; }
+  .app-header__identity { min-width: 0; }
+  .brand-descriptor { display: none; }
+  .app-header__status .data-state { max-width: 126px; white-space: normal; line-height: 1.25; }
   .app-header > div:nth-child(2) {
     order: 3;
     flex: 1 0 100%;
     min-width: 0;
     max-width: none !important;
   }
-  .header-market-label { min-width: 0; width: 100%; }
+  .header-market-label { min-width: 0; }
   .market-picker { width: 100%; min-width: 0; }
+  .app-header__status { gap: 8px !important; }
+  .app-workbench__return span { display: none; }
   .market-picker__menu { left: 0; width: min(100%, 420px); }
+  .brand-wordmark { font-size: 1.3rem; }
+  .rtoken-snapshot { gap: 10px; }
+  .rtoken-snapshot__prices { gap: 6px; }
+  .rtoken-snapshot__prices > div { padding: 9px 8px; }
+  .rtoken-snapshot__prices span { font-size: 0.58rem; }
+  .rtoken-snapshot__prices strong { font-size: clamp(0.88rem, 4.2vw, 1rem); letter-spacing: -0.04em; }
+  .rtoken-snapshot__last strong { font-size: clamp(1.12rem, 5.4vw, 1.3rem); }
+  .rtoken-snapshot__prices small { font-size: 0.52rem; }
   .app-center-canvas {
     grid-column: 1;
     grid-row: 2;
     padding: 0 16px 20px;
-    grid-template-rows: auto minmax(270px, auto) auto;
+    grid-template-rows: minmax(300px, auto);
     overflow: visible;
   }
+  .app-center-canvas > .canvas-container { min-height: 300px; height: auto; }
+  .evidence-chart-frame, .mechanics-svg { min-height: 320px; }
+  .mechanics-toolbar { min-height: 104px; padding-top: 10px; }
+  .mechanics-toolbar > div:first-child > p:first-child { display: none; }
+  .mechanics-toolbar [class*="heading"] { font-size: 1.45rem; line-height: 1.12; }
+  .mechanics-toolbar > div:first-child > p:nth-child(2) { font-size: 1.35rem !important; }
+  .mechanics-toolbar__controls { position: relative; z-index: 1; margin-top: 8px; }
+  .rtoken-snapshot { padding-top: 12px; }
+  .rtoken-snapshot__instrument > span { display: none; }
+  .instrument-search { min-width: 0; }
   .app-research-panel {
     grid-column: 1;
     grid-row: 3;
     min-height: 520px;
+    height: min(78vh, 720px);
     border-top: 1px solid var(--color-border-subtle);
     border-left: 0;
-    height: min(78vh, 720px);
   }
+  .mechanics-toolbar { align-items: start; flex-direction: column; gap: 10px; }
+  .mechanics-toolbar__controls { width: 100%; justify-content: space-between; gap: 8px; }
+  .history-state { max-width: 58%; }
+  .chart-footnote { flex-direction: column; gap: 3px; }
 }
+
 @media (max-width: 380px) {
   .app-header { padding-inline: 12px; gap: 10px; }
   .brand-wordmark { font-size: 1.15rem; }
   .brand-wordmark__lab { margin-left: 6px; padding-left: 6px; }
+  .data-state { font-size: 0.54rem; }
   .app-header__status .data-state { max-width: 126px; white-space: normal; line-height: 1.25; }
 }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-}
 
-/* Final tablet overrides follow legacy workbench breakpoints above. */
+/* Keep the evidence and research panels readable on narrow tablets. */
 @media (min-width: 741px) and (max-width: 900px) {
   .app-workbench { height: auto; min-height: 100dvh; }
   .app-workbench .app-layout {
@@ -961,14 +899,21 @@ body {
     min-height: 100dvh;
     overflow: visible;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto minmax(300px, auto) minmax(580px, auto);
   }
   .app-workbench .app-header { grid-column: 1; grid-row: 1; min-height: 78px; }
-  .app-workbench .app-center-canvas { grid-column: 1; grid-row: 2; min-height: 0; padding: 0 clamp(20px, 4vw, 36px) 24px; overflow: visible; }
-  .app-workbench .app-center-canvas > .canvas-container { min-height: 0; overflow: visible; }
+  .app-workbench .app-center-canvas { grid-column: 1; grid-row: 2; min-height: 0; padding: 0 clamp(20px, 4vw, 36px) 24px; grid-template-rows: minmax(300px, auto); overflow: visible; }
+  .app-workbench .app-center-canvas > .canvas-container { min-height: 300px; height: auto; overflow: visible; }
   .app-workbench .app-research-panel { grid-column: 1; grid-row: 3; min-height: 580px; height: min(74vh, 760px); border-top: 1px solid var(--color-border-subtle); border-left: 0; }
   .app-workbench .app-research-panel > div:first-child,
   .app-workbench .app-research-panel .research-brief,
   .app-workbench .app-research-panel .research-messages,
   .app-workbench .app-research-panel .research-composer { padding-inline: clamp(20px, 4vw, 36px) !important; }
+}
+
+/* At desktop widths, preserve the viewport-filling two-column workbench. */
+@media (min-width: 901px) {
+  .app-workbench { height: 100dvh; min-height: 0; }
+  .app-workbench .app-layout { height: auto; min-height: 0; overflow: hidden; grid-template-rows: 66px minmax(0, 1fr); }
+  .app-workbench .app-center-canvas { grid-template-rows: minmax(0, 1fr); }
 }

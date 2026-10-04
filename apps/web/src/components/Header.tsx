@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { RTokenMarket } from "../features/rtoken-markets";
 import { searchRTokenMarkets } from "../features/rtoken-markets";
+import { ChevronDownIcon } from "./Icons";
 
 interface HeaderProps {
   dataStatus: "loading" | "live" | "unavailable";
@@ -107,7 +108,7 @@ export function Header({ dataStatus, selectedMarket, markets, marketsStatus, onM
             placeholder="Search symbol…"
             autoComplete="off"
           />
-          <span className="market-picker__chevron" aria-hidden="true">⌄</span>
+          <ChevronDownIcon className="market-picker__chevron" />
           {isOpen && (
             <div className="market-picker__menu" aria-busy={marketsStatus === "loading"}>
               {marketsStatus === "loading" && <span className="market-picker__message" role="status">Loading Bitget markets…</span>}

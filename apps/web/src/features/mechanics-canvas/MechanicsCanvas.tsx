@@ -4,9 +4,13 @@ import { Box, Text } from "@rtoken-lab/ui";
 import type { RTokenSnapshot } from "../rtoken-snapshot";
 import type { RTokenCandle, RTokenCandleRange } from "../rtoken-candles";
 import type { RTokenStockClose } from "../rtoken-stock-close";
+import { buildRTokenCandlePathSegments, RTOKEN_CANDLE_GAP_THRESHOLD_MS } from "../rtoken-candle-analysis";
+import { ArrowUpRightIcon } from "../../components/Icons";
+import { formatQuotePrice, formatQuoteSize } from "../quote-format";
 
 interface MechanicsCanvasProps {
   symbol: string | null;
+  pricePrecision?: number;
   rTokenSnapshot?: RTokenSnapshot | null;
   snapshotStatus: "loading" | "live" | "unavailable";
   candles: RTokenCandle[];
@@ -21,19 +25,9 @@ interface MechanicsCanvasProps {
   stockCloseError: string | null;
 }
 
-function pathFor(candles: RTokenCandle[], width: number, height: number, min: number, max: number): string {
-  const range = max - min || 1;
-  const firstTimestamp = candles[0]?.timestamp ?? 0;
-  const timestampRange = candles.length > 1 ? candles.at(-1)!.timestamp - firstTimestamp || 1 : 1;
-  return candles.map((candle, index) => {
-    const x = ((candle.timestamp - firstTimestamp) / timestampRange) * width;
-    const y = height - ((candle.close - min) / range) * height;
-    return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(" ");
-}
-
 export function MechanicsCanvas({
   symbol,
+  pricePrecision,
   rTokenSnapshot,
   snapshotStatus,
   candles,
@@ -138,8 +132,9 @@ export function MechanicsCanvas({
   const padding = hasLiveHistory ? Math.max((observedHigh - observedLow) * 0.12, observedHigh * 0.002) : 0;
   const minPrice = observedLow - padding;
   const maxPrice = observedHigh + padding;
-  const chartPath = hasLiveHistory ? pathFor(candles, width, height, minPrice, maxPrice) : "";
-  const areaPath = chartPath ? `${chartPath} L${width},${height} L0,${height} Z` : "";
+  const chartSegments = hasLiveHistory
+    ? buildRTokenCandlePathSegments(candles, width, height, minPrice, maxPrice)
+    : [];
   const hoveredCandle = hoveredCandleIndex === null ? null : candles[hoveredCandleIndex] ?? null;
   const hoveredX = hoveredCandle && candles.length > 1
     ? ((hoveredCandle.timestamp - candles[0]!.timestamp) / (candles.at(-1)!.timestamp - candles[0]!.timestamp || 1)) * width
@@ -208,20 +203,20 @@ export function MechanicsCanvas({
           </div>
           <div className="rtoken-snapshot__prices">
             <div className={`rtoken-snapshot__last${changedQuoteFields.has("last") ? " is-updated" : ""}`}>
-              <span>LAST TRADED</span><strong>{rTokenSnapshot.lastPrice.toFixed(2)} <small>USDT</small></strong>
+              <span>LAST TRADED</span><strong>{formatQuotePrice(rTokenSnapshot.lastPrice, pricePrecision)} <small>USDT</small></strong>
             </div>
             <div className={`rtoken-snapshot__book${changedQuoteFields.has("bid") ? " is-updated" : ""}`}>
-              <span>BEST BID · {rTokenSnapshot.bidSize}</span><strong>{rTokenSnapshot.bidPrice.toFixed(2)} <small>USDT</small></strong>
+              <span>BEST BID SIZE · {formatQuoteSize(rTokenSnapshot.bidSize)} <small>AS REPORTED</small></span><strong>{formatQuotePrice(rTokenSnapshot.bidPrice, pricePrecision)} <small>USDT</small></strong>
             </div>
             <div className={`rtoken-snapshot__book${changedQuoteFields.has("ask") ? " is-updated" : ""}`}>
-              <span>BEST ASK · {rTokenSnapshot.askSize}</span><strong>{rTokenSnapshot.askPrice.toFixed(2)} <small>USDT</small></strong>
+              <span>BEST ASK SIZE · {formatQuoteSize(rTokenSnapshot.askSize)} <small>AS REPORTED</small></span><strong>{formatQuotePrice(rTokenSnapshot.askPrice, pricePrecision)} <small>USDT</small></strong>
             </div>
           </div>
           <div className="rtoken-snapshot__meta">
             <span>Bitget ticker time {new Date(rTokenSnapshot.tickerTimestamp).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" })}</span>
             <span>Retrieved {new Date(rTokenSnapshot.retrievedAt).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" })}</span>
             <span>Bid/ask spread {rTokenSnapshot.spreadPercent.toFixed(2)}%</span>
-            <a href="https://www.bitget.com/api-doc/uta/reality/reality-trading-guide" target="_blank" rel="noreferrer">Bitget Reality market-data docs ↗</a>
+            <a href="https://www.bitget.com/api-doc/uta/reality/reality-trading-guide" target="_blank" rel="noreferrer">Bitget Reality market-data docs <ArrowUpRightIcon className="ui-icon ui-icon--inline" /></a>
           </div>
           {rTokenSnapshot.warnings.length > 0 && <ul className="rtoken-snapshot__warnings" aria-label="Quote quality warnings">{rTokenSnapshot.warnings.map((warning: string) => <li key={warning}>{warning}</li>)}</ul>}
           <p className="rtoken-snapshot__limit">Bitget rToken snapshot is live market data. Any stock close below is the latest available daily close and is not synchronized with this quote.</p>
@@ -242,7 +237,7 @@ export function MechanicsCanvas({
           <div className="stock-close-comparison" aria-label={`EODHD latest daily ${stockClose.symbol} ticker close`}>
             <div><span>STOCK TICKER REFERENCE · {stockClose.symbol}</span><strong>{formatPrice(stockClose.close)} <small>USD</small></strong></div>
             <div><span>OFFICIAL CLOSE DATE</span><strong>{stockClose.date}</strong></div>
-            <small>Source: <a href="https://eodhd.com/financial-apis/api-for-historical-data-and-volumes" target="_blank" rel="noreferrer">{stockClose.source} daily history ↗</a>{stockClose.tokenType === "demo" ? " · limited demo token" : ""} · retrieved {formatUtc(Date.parse(stockClose.retrievedAt))}</small>
+            <small>Source: <a href="https://eodhd.com/financial-apis/api-for-historical-data-and-volumes" target="_blank" rel="noreferrer">{stockClose.source} daily history <ArrowUpRightIcon className="ui-icon ui-icon--inline" /></a>{stockClose.tokenType === "demo" ? " · limited demo token" : ""} · retrieved {formatUtc(Date.parse(stockClose.retrievedAt))}</small>
           </div>
         ) : (
           <div className="stock-close-unavailable" role={stockCloseStatus === "loading" ? "status" : "note"}>
@@ -257,12 +252,12 @@ export function MechanicsCanvas({
           <div className={`history-empty history-empty--${currentCandleStatus}`} role="status">
             <span className="history-empty__badge">{currentCandleStatus === "loading" ? "[ FETCHING // BITGET HOURLY CANDLES ]" : "[ DATA_UNAVAILABLE // NO_HOURLY_CANDLES ]"}</span>
             <strong>{currentCandleStatus === "loading" ? "Loading verified hourly candles" : "Hourly rToken history is unavailable"}</strong>
-            <span>{currentCandleStatus === "loading" ? `Checking up to 1,000 hourly candles for R${symbol}USDT, then showing those inside the selected time window.` : candleError ?? "A valid candle series could not be confirmed, so no price line is drawn."}</span>
+            <span>{currentCandleStatus === "loading" ? `Checking up to 1,000 hourly candles for R${symbol}USDT, then showing those inside the selected time window.` : candleError ?? "A fresh, valid candle series could not be confirmed, so no price line is drawn."}</span>
             <span>Source: Bitget Reality spot candles. No native-stock series or premium is shown.</span>
           </div>
         ) : (
           <>
-          {candleHistoryStale && <p role="status">Delayed history: the newest hourly candle is {formatUtc(candles.at(-1)!.timestamp)}. It is shown as historical data and is not a current price.</p>}
+          {candleHistoryStale && <p className="history-delay-notice" role="status">Delayed history: the newest hourly candle is {formatUtc(candles.at(-1)!.timestamp)}. It is shown as historical data and is not a current price.</p>}
           <svg
             ref={svgRef}
             className="mechanics-svg"
@@ -287,9 +282,15 @@ export function MechanicsCanvas({
             </defs>
             <rect width={width} height={height} fill="transparent" />
             <rect width={width} height={height} fill="url(#instrument-grid)" />
-            <path d={areaPath} fill="url(#rtoken-area-fill)" />
-            <path data-animated d={chartPath} fill="none" stroke="var(--color-accent-positive)" strokeWidth="7" strokeOpacity="0.1" vectorEffect="non-scaling-stroke" />
-            <path data-animated d={chartPath} fill="none" stroke="var(--color-accent-positive)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+            {chartSegments.map((segment, index) => <g key={`candle-segment-${index}`}>
+              {segment.areaPath && <path d={segment.areaPath} fill="url(#rtoken-area-fill)" />}
+              {segment.singleton
+                ? <circle cx={segment.singleton.x} cy={segment.singleton.y} r="3.5" fill="var(--color-accent-positive)" aria-hidden="true" />
+                : <>
+                  <path data-animated d={segment.linePath} fill="none" stroke="var(--color-accent-positive)" strokeWidth="7" strokeOpacity="0.1" vectorEffect="non-scaling-stroke" />
+                  <path data-animated d={segment.linePath} fill="none" stroke="var(--color-accent-positive)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+                </>}
+            </g>)}
             <text x="18" y="24" fill="var(--color-fg-muted)" fontSize="12" fontFamily="var(--font-mono)">{`BITGET SPOT · ${candles.length} HOURLY CANDLES · ${candleRange} VIEW · CLOSE IN USDT`}</text>
             {hoveredX !== null && hoveredY !== null && hoveredCandle && <g className="chart-crosshair" aria-hidden="true">
               <line x1={hoveredX} x2={hoveredX} y1="0" y2={height} />
@@ -307,9 +308,9 @@ export function MechanicsCanvas({
       <div className="chart-footnote">
         {hasLiveHistory ? <>
           <span>Bitget public SPOT hourly candles · close prices in USDT · no native-stock series.{candleHistoryStale ? " Delayed history, not a current price." : ""}</span>
-          <span>Observed {formatUtc(candles[0]!.timestamp)} – {formatUtc(candles.at(-1)!.timestamp)} · retrieved {candleRetrievedAt ? formatUtc(Date.parse(candleRetrievedAt)) : "time unavailable"}.</span>
+          <span>Observed {formatUtc(candles[0]!.timestamp)} – {formatUtc(candles.at(-1)!.timestamp)} · line breaks at gaps over {RTOKEN_CANDLE_GAP_THRESHOLD_MS / (60 * 60_000)} hours · retrieved {candleRetrievedAt ? formatUtc(Date.parse(candleRetrievedAt)) : "time unavailable"}.</span>
         </> : <>
-          <span>The chart area remains in place when fresh, validated Bitget candle history is unavailable.</span>
+          <span>The chart area remains in place when valid Bitget candle history is unavailable.</span>
           <span>One-sided rToken evidence only · no native-stock comparison or premium.</span>
         </>}
       </div>

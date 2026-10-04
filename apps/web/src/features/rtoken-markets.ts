@@ -1,6 +1,7 @@
 export interface RTokenMarket {
   symbol: string;
   baseCoin: string;
+  pricePrecision?: number;
 }
 
 interface BitgetMarketResponse {
@@ -14,6 +15,7 @@ interface BitgetMarketResponse {
     symbolType?: string;
     status?: string;
     isReality?: string;
+    pricePrecision?: unknown;
   }>;
 }
 
@@ -32,7 +34,17 @@ export function parseRTokenMarkets(payload: unknown): RTokenMarket[] {
       || !item.symbol || !item.baseCoin || !/^r[A-Z0-9]+$/.test(item.baseCoin)
       || item.symbol !== `${item.baseCoin.toUpperCase()}USDT`
     ) continue;
-    unique.set(item.symbol, { symbol: item.symbol, baseCoin: item.baseCoin });
+    const rawPrecision = item.pricePrecision;
+    const precision = typeof rawPrecision === "number"
+      ? rawPrecision
+      : typeof rawPrecision === "string" && /^\d+$/.test(rawPrecision)
+        ? Number(rawPrecision)
+        : Number.NaN;
+    unique.set(item.symbol, {
+      symbol: item.symbol,
+      baseCoin: item.baseCoin,
+      ...(Number.isInteger(precision) && precision >= 0 && precision <= 12 ? { pricePrecision: precision } : {}),
+    });
   }
 
   const markets = [...unique.values()].sort((a, b) => a.baseCoin.localeCompare(b.baseCoin));

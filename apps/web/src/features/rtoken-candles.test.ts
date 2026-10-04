@@ -25,8 +25,12 @@ describe("parseRTokenCandles", () => {
     expect(() => parseRTokenCandles({ code: "00000", data: [[hour, 10, 9, 8, 11, 1, 10], [2 * hour, 10, 11, 9, 10, 1, 10]] }, 3 * hour)).toThrow("fewer than two");
   });
 
-  it("keeps valid old candles for historical display", () => {
-    const history = parseRTokenCandles({ code: "00000", data: [[hour, 10, 11, 9, 10, 1, 10], [2 * hour, 10, 11, 9, 10, 1, 10]] }, 5 * hour);
+  it("keeps valid old candles for historical display instead of discarding the whole series", () => {
+    const history = parseRTokenCandles({
+      code: "00000",
+      data: [[hour, 10, 11, 9, 10, 1, 10], [2 * hour, 10, 11, 9, 10, 1, 10]],
+    }, 5 * hour);
+
     expect(history).toHaveLength(2);
     expect(isRTokenCandleHistoryStale(history, 5 * hour)).toBe(true);
   });
@@ -40,7 +44,7 @@ describe("parseRTokenCandles", () => {
 });
 
 describe("isRTokenCandleHistoryStale", () => {
-  it("marks history stale beyond two hours", () => {
+  it("marks the history stale when its latest observation is older than two hours", () => {
     const candles = [{ timestamp: hour, open: 10, high: 10, low: 10, close: 10, baseVolume: 1, quoteVolume: 10 }];
     expect(isRTokenCandleHistoryStale(candles, hour + 2 * hour)).toBe(false);
     expect(isRTokenCandleHistoryStale(candles, hour + 2 * hour + 1)).toBe(true);

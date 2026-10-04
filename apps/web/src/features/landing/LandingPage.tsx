@@ -1,3 +1,5 @@
+import { ArrowUpRightIcon } from "../../components/Icons";
+
 interface LandingPageProps {
   onOpenWorkbench: () => void;
 }
@@ -19,7 +21,7 @@ export function LandingPage({ onOpenWorkbench }: LandingPageProps) {
           Live rToken market data, hourly history, and the research assistant.
         </p>
         <button className="landing-entry__button" type="button" onClick={onOpenWorkbench}>
-          Open the workbench <span aria-hidden="true">↗</span>
+          Open the workbench <ArrowUpRightIcon className="ui-icon landing-entry__button-icon" />
         </button>
       </section>
     </main>

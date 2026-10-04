@@ -38,6 +38,11 @@ describe("parseRTokenMarkets", () => {
       .toThrow("did not confirm RAAPLUSDT");
   });
 
+  it("retains valid provider price precision and ignores invalid precision", () => {
+    expect(parseRTokenMarkets({ code: "00000", data: [instrument({ pricePrecision: "4" })] })[0]?.pricePrecision).toBe(4);
+    expect(parseRTokenMarkets({ code: "00000", data: [instrument({ pricePrecision: "99" })] })[0]?.pricePrecision).toBeUndefined();
+  });
+
   it("keeps RAAPL at the top and searches base and exchange symbols", () => {
     const markets = [
       { symbol: "RNVIDIAUSDT", baseCoin: "rNVIDIA" },

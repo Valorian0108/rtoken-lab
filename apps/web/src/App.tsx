@@ -13,6 +13,7 @@ import type { RTokenCandle, RTokenCandleHistory, RTokenCandleRange } from "./fea
 import { fetchRTokenStockClose } from "./features/rtoken-stock-close";
 import type { RTokenStockClose } from "./features/rtoken-stock-close";
 import { LandingPage } from "./features/landing/LandingPage";
+import { ArrowLeftIcon } from "./components/Icons";
 
 // ============================================================================
 // Main App Component
@@ -50,6 +51,7 @@ function AppInner() {
     fetchRTokenMarkets(controller.signal)
       .then((availableMarkets) => {
         setMarkets(availableMarkets);
+        setSelectedMarket((current) => availableMarkets.find((market) => market.symbol === current.symbol) ?? current);
         setMarketsStatus("ready");
       })
       .catch((error: unknown) => {
@@ -200,7 +202,7 @@ function AppInner() {
       {showWorkbench ? (
         <section className="app-workbench" id="workbench" aria-label="rToken Lab workbench">
           <div className="app-workbench__return">
-            <button type="button" onClick={() => transitionView(false)}>← Return to field note</button>
+            <button type="button" onClick={() => transitionView(false)}><ArrowLeftIcon className="ui-icon" /> Return to field note</button>
             <span>LIVE BITGET EVIDENCE · RESEARCH WORKBENCH</span>
           </div>
           <div className="app-layout">
@@ -231,6 +233,7 @@ function AppInner() {
               <div className="canvas-container">
                 <MechanicsCanvas
                   symbol={selectedMarket.baseCoin.replace(/^r/, "")}
+                  pricePrecision={selectedMarket.pricePrecision}
                   rTokenSnapshot={rTokenSnapshot}
                   snapshotStatus={snapshotStatus}
                   candles={visibleCandles}
